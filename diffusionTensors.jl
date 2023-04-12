@@ -7,11 +7,11 @@ function Dconst1D(q::T) where T<:Real
 end
 
 function Dlinear1D(q::T) where T<:Real
-    return abs(q) + 0.001
+    return 1.0 + abs(q)
 end
     
 function Dquadratic1D(q::T) where T<:Real
-    return q^2 + 0.001
+    return 1.0 + q^2 
 end
 
 function Dconst2D(q::AbstractVector{T}) where T<:Real
@@ -30,13 +30,13 @@ end
 
 function DmoroCardin(q::AbstractVector{T}) where T<:Real
     x, y = q
-    return (1 + 8 * exp(- (x^2 + y^2) / (2 * 0.2^2)))^(-1) * Matrix{Float64}(I, 2, 2)
+    return (1.0 + 8.0 * exp(- (x^2 + y^2) / (2 * 0.2^2)))^(-1) * Matrix{Float64}(I, 2, 2)
 end
 
 function Doseen(q::AbstractVector{T}) where T<:Real
     x, y = q
     r2 = x^2 + y^2
-    return [1 + x^2/r2 x*y/r2; x*y/r2 1 + y^2/r2]
+    return [1.0 + x^2/r2 x*y/r2; x*y/r2 1 + y^2/r2]
 end
 
 end # module DiffusionTensors
