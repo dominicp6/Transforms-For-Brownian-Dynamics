@@ -1,6 +1,6 @@
 module TransformUtils
 using FHist, StatsBase
-export increment_g_counts, time_transformed_potential
+export increment_g_counts, time_transformed_potential, increment_I_counts
 
 function time_transformed_potential(x, V, D, tau)
     return V(x) - tau * log(D(x))
@@ -37,19 +37,18 @@ function increment_g_counts(q_chunk, D, bin_boundaries, ΣgI, Σg)
     return ΣgI, Σg
 end
 
-function average_renormalised_probs(renormalised_probs, chunk_size, steps_ran)
-    num_chunks = length(renormalised_probs)
-
-    # Compute the cumulative sum of probabilities
-    cumsum = zeros(size(renormalised_probs[1]))
-    for i in 1:num_chunks-1
-        cumsum .+= renormalised_probs[i] .* chunk_size
+function increment_I_counts(q_chunk, x_of_y, bin_boundaries, ΣI)
+    # Iterate through trajectory points and assign to corresponding bin
+    for q in q_chunk
+        # Find the index of the histogram bin that q is in
+        bin_index = searchsortedfirst(bin_boundaries, x_of_y(q)) - 1
+        # only count points that are in the domain of the specified bins
+        if bin_index != 0 && bin_index != length(bin_boundaries)
+            ΣI[bin_index] += 1
+        end
     end
-    cumsum .+= renormalised_probs[end] .* steps_ran
 
-    # Compute the total number of steps and return the average
-    total_steps = chunk_size * (num_chunks - 1) + steps_ran
-    return cumsum ./ total_steps
+    return ΣI
 end
 
 end # module

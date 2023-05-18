@@ -67,13 +67,20 @@ function transformedLocalWell1D(q::T) where T<:Real
     return localWell1D(r) - 2*log(abs(q/2 + 1))
 end
 
-function quadrupleWell2D(q::AbstractVector{T}) where T<:Real
+function quadrupleWell2D(x::T, y::T) where T<:Real
     # 2D quadruple well potential
-    x, y = q
     h = 2
     c = 2
     return -(1/4)*(x^2)*(h^4) + (1/2)*(c^2)*(x^4) + -(1/4)*(y^2)*(h^4) + (1/2)*(c^2)*(y^4)
 end
+
+# function quadrupleWell2D(q::AbstractVector{T}) where T<:Real
+#     # 2D quadruple well potential
+#     x, y = q
+#     h = 2
+#     c = 2
+#     return -(1/4)*(x^2)*(h^4) + (1/2)*(c^2)*(x^4) + -(1/4)*(y^2)*(h^4) + (1/2)*(c^2)*(y^4)
+# end
 
 function moroCardin2D(q::AbstractVector{T}) where T<:Real
     # 2D Moro-Cardin potential

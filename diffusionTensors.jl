@@ -1,6 +1,6 @@
 module DiffusionTensors
 using LinearAlgebra
-export Dconst1D, Dlinear1D, Dquadratic1D, Dconst2D, Dlinear2D, Dquadratic2D, DmoroCardin, Doseen
+export Dconst1D, Dlinear1D, Dquadratic1D, Dconst2D, Dlinear2D, Dquadratic2D, DmoroCardin, Doseen, DRinvertible
 
 function Dconst1D(q::T) where T<:Real
     return 1.0
@@ -37,6 +37,11 @@ function Doseen(q::AbstractVector{T}) where T<:Real
     x, y = q
     r2 = x^2 + y^2
     return [1.0 + x^2/r2 x*y/r2; x*y/r2 1 + y^2/r2]
+end
+
+function DRinvertible(x::T, y::T) where T<:Real
+
+    return [1.0 2.0; 3.0 4.0]
 end
 
 end # module DiffusionTensors
