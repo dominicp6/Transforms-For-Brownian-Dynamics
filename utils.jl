@@ -1,6 +1,6 @@
 module Utils
-using HCubature, QuadGK, FHist
-export compute_1D_probabilities, compute_2D_probabilities, compute_1D_mean_L1_error, compute_2D_mean_L1_error
+using HCubature, QuadGK, FHist, HDF5, Statistics, StatsBase, Plots
+export compute_1D_probabilities, compute_2D_probabilities, compute_1D_mean_L1_error, compute_2D_mean_L1_error, save_and_plot, init_q0, plot_heatmap, plot_histograms
 
 function compute_2D_probabilities(V, tau, xmin, ymin, xmax, ymax, n_bins)
     # Compute the expected counts in a 2D histogram of the configuration space
@@ -120,5 +120,51 @@ function compute_2D_mean_L1_error(empirical_probabilities::Matrix{Float64}, theo
     return mean_error
 end
 
+function save_and_plot(integrator, convergence_data, stepsizes, save_dir; xlabel="dt", ylabel="Mean L1 error", error_in_mean=false)
+    @info "Saving data"
+    h5write("$(save_dir)/$(integrator).h5", "data", convergence_data)
+
+    number_of_repeats = size(convergence_data, 2)
+
+    # Plot (dim 1 is the step size, dim 2 is the repeat)
+    plot(stepsizes, mean(convergence_data, dims=2), title=string(nameof(integrator)), xlabel=xlabel, ylabel=ylabel, xscale=:log10, yscale=:log10, label="")
+    if error_in_mean
+        plot!(stepsizes, mean(convergence_data, dims=2)+std(convergence_data, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
+        plot!(stepsizes, mean(convergence_data, dims=2)-std(convergence_data, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
+    else
+        plot!(stepsizes, mean(convergence_data, dims=2)+std(convergence_data, dims=2), ls=:dash, lc=:black, label="")
+        plot!(stepsizes, mean(convergence_data, dims=2)-std(convergence_data, dims=2), ls=:dash, lc=:black, label="")
+    end
+    savefig("$(save_dir)/$(integrator).png")
+end
+
+function plot_histograms(integrator, histogram_data, stepsizes, save_dir; xlabel="x", ylabel="y", title="2D Histogram")
+    for (stepsize_idx, dt) in enumerate(stepsizes)
+        for repeat in 1:size(histogram_data, 2)
+            plot_heatmap(histogram_data[stepsize_idx, repeat], repeat, save_dir, integrator, dt, xlabel=xlabel, ylabel=ylabel, title=title)
+        end
+    end
+end
+
+function init_q0(q0; dim::Int = 1) 
+    if q0 === nothing
+        q0 = randn(dim)
+    end
+    return q0
+end
+
+function plot_heatmap(hist::Hist2D, repeat, save_dir, integrator, dt; xlabel, ylabel, title)
+    # Extract histogram data
+    bins_x = bincenters(hist)[1]
+    bins_y = bincenters(hist)[2]
+    freq = bincounts(hist)
+    
+    # Plot heatmap
+    h = heatmap(bins_x, bins_y, freq, aspect_ratio=:equal, color=:viridis,
+            xlabel=xlabel, ylabel=ylabel, title=title)
+
+    # Save heatmap
+    savefig(h, "$(save_dir)/heatmaps/$(string(nameof(integrator)))/h=$dt/$(repeat).png")
+end
 
 end # module Utils

@@ -1,7 +1,7 @@
 module Integrators
 include("calculus.jl")
 using LinearAlgebra, Random, Plots, ForwardDiff, Base.Threads, ProgressBars, .Calculus
-export euler_maruyamaND, naive_leimkuhler_matthewsND, hummer_leimkuhler_matthewsND, euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D
+export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D
 
 function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
@@ -190,7 +190,7 @@ function stochastic_heun1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::N
     return q_traj
 end
 
-function euler_maruyamaND(q0, V, D, tau::Number, m::Integer, dt::Number)
+function euler_maruyama2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -207,11 +207,11 @@ function euler_maruyamaND(q0, V, D, tau::Number, m::Integer, dt::Number)
     # simulate
     for i in ProgressBar(1:m)
         # compute the drift and diffusion coefficients
-        Dq = D(q)
-        grad_V = ForwardDiff.gradient(V, q)
-        DDT = Dq * Dq'
-        div_DDT = matrix_divergence(x -> D(x) * D(x)', q)
-        drift = -DDT * grad_V + tau * div_DDT 
+        grad_V = Vprime(q[1], q[2])
+        Dq = D(q[1], q[2])
+        DDTq = Dq * Dq'
+        div_DDTq = div_DDT(q[1], q[2])
+        drift = -DDTq * grad_V + tau * div_DDTq 
         diffusion = sqrt(2 * tau) * Dq * randn(n)
         
         # update the configuration
@@ -225,7 +225,7 @@ function euler_maruyamaND(q0, V, D, tau::Number, m::Integer, dt::Number)
     return q_traj
 end
 
-function naive_leimkuhler_matthewsND_efficient(q0, Vprime, DDT, div_DDT, tau::Number, m::Integer, dt::Number)
+function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -241,11 +241,12 @@ function naive_leimkuhler_matthewsND_efficient(q0, Vprime, DDT, div_DDT, tau::Nu
     Rₖ = randn(n)
 
     # simulate
-    for i in ProgressBar(1:m)
+    for i in 1:m
         # compute the drift and diffusion coefficients
-        grad_V = Vprime(q)
-        DDTq = DDT(q)
-        div_DDTq = div_DDT(q)
+        grad_V = Vprime(q[1], q[2])
+        Dq = D(q[1], q[2])
+        DDTq = Dq * Dq'
+        div_DDTq = div_DDT(q[1], q[2])
         drift = -DDTq * grad_V + tau * div_DDTq 
         Rₖ₊₁ = randn(n)
         diffusion = sqrt(2 * tau) * Dq * (Rₖ + Rₖ₊₁)/2 
@@ -264,7 +265,7 @@ function naive_leimkuhler_matthewsND_efficient(q0, Vprime, DDT, div_DDT, tau::Nu
     return q_traj
 end
 
-function naive_leimkuhler_matthewsND(q0, V, D, tau::Number, m::Integer, dt::Number)
+function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -282,11 +283,11 @@ function naive_leimkuhler_matthewsND(q0, V, D, tau::Number, m::Integer, dt::Numb
     # simulate
     for i in ProgressBar(1:m)
         # compute the drift and diffusion coefficients
-        Dq = D(q)
-        grad_V = ForwardDiff.gradient(V, q)
-        DDT = Dq * Dq'
-        div_DDT = matrix_divergence(x -> D(x) * D(x)', q)
-        drift = -DDT * grad_V + tau * div_DDT 
+        grad_V = Vprime(q[1], q[2])
+        Dq = D(q[1], q[2])
+        DDTq = Dq * Dq'
+        div_DDTq = div_DDT(q[1], q[2])
+        drift = -DDTq * grad_V + (3/4) * tau * div_DDTq 
         Rₖ₊₁ = randn(n)
         diffusion = sqrt(2 * tau) * Dq * (Rₖ + Rₖ₊₁)/2 
         
@@ -304,44 +305,43 @@ function naive_leimkuhler_matthewsND(q0, V, D, tau::Number, m::Integer, dt::Numb
     return q_traj
 end
 
-function hummer_leimkuhler_matthewsND(q0, V, D, tau::Number, m::Integer, dt::Number)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion tensor at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
-    
-    # set up
-    t = 0.0
-    q = copy(q0)
-    n = length(q0)
-    q_traj = zeros(n, m)
-    Rₖ = randn(n)
 
-    # simulate
-    for i in ProgressBar(1:m)
-        # compute the drift and diffusion coefficients
-        Dq = D(q)
-        grad_V = ForwardDiff.gradient(V, q)
-        DDT = Dq * Dq'
-        div_DDT = matrix_divergence(x -> D(x) * D(x)', q)
-        drift = -DDT * grad_V + (3/4) * tau * div_DDT 
-        Rₖ₊₁ = randn(n)
-        diffusion = sqrt(2 * tau) * Dq * (Rₖ + Rₖ₊₁)/2 
-        
-        # update the configuration
-        q += drift * dt + diffusion * sqrt(dt) 
-        q_traj[:,i] .= q
-        
-        # update the time
-        t += dt
-
-        # update the last increment
-        Rₖ = copy(Rₖ₊₁)      
-    end 
+# THIS FUNCTION HAS NOTT BEEN TESTED
+# function milstein_method2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+#     # q0 is the initial configuration
+#     # V is a function that computes the potential energy at a given configuration
+#     # D is a function that computes the diffusion tensor at a given configuration
+#     # tau is the time scale for diffusion
+#     # m is the number of steps
+#     # dt is the time step
     
-    return q_traj
-end
+#     # set up
+#     t = 0.0
+#     q = copy(q0)
+#     n = length(q0)
+#     q_traj = zeros(n, m)
+
+#     # simulate
+#     for i in 1:m
+#         # compute the drift and diffusion coefficients
+#         grad_V = Vprime(q[1], q[2])
+#         Dq = D(q[1], q[2])
+#         DDTq = Dq * Dq'
+#         div_DDTq = div_DDT(q[1], q[2])
+#         drift = -DDTq * grad_V + tau * div_DDTq 
+#         Rₖ = randn(n)
+#         diffusion = sqrt(2 * tau) * Dq * Rₖ
+#         second_order_correction = (tau/2) * div_DDTq * (Rₖ' * Dq * Rₖ - 1)
+        
+#         # update the configuration
+#         q += drift * dt + diffusion * sqrt(dt) + second_order_correction * dt
+#         q_traj[:,i] .= q
+        
+#         # update the time
+#         t += dt   
+#     end 
+    
+#     return q_traj
+# end
 
 end # module Integrators
