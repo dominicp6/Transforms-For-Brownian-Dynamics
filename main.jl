@@ -10,23 +10,21 @@ import .Utils: compute_1D_probabilities
 import .Experiments: master_1D_experiment, run_1D_experiment_until_given_uncertainty
 
 # Name
-exp_name = ""
+exp_name = "milstein_revisited"
 
 # Integrator Params
-T = 1000000
+T = 10000
 tau = 1
 
 # Experiment Params
 num_repeats = 11
 num_step_sizes = 10
-integrators = [euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D]
-stepsizes = 10 .^ range(-2,stop=-1,length=num_step_sizes)
+integrators = [milstein_method1D]
+stepsizes = 10 .^ range(-3,stop=-1,length=num_step_sizes)
 println(stepsizes)
 # Histogram parameters
 xmin = -5
 xmax = 5
-ymin = 5
-ymax = 5
 n_bins = 30
 
 #Potential and diffusion 

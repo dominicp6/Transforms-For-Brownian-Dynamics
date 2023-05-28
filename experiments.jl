@@ -4,13 +4,15 @@ include("potentials.jl")
 include("diffusionTensors.jl")
 include("utils.jl")
 include("transform_utils.jl")
+include("dynamics_utils.jl")
 using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs
 import .Calculus: differentiate1D
 import .Utils: compute_1D_mean_L1_error, compute_1D_probabilities, save_and_plot, init_q0
 import .TransformUtils: increment_g_counts, increment_I_counts
+import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
 export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_uncertainty
 
-function make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, x_bins, chunk_size, time_transform, space_transform; T=nothing, target_uncertainty=nothing)
+function make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, x_bins, chunk_size, time_transform, space_transform; T=nothing, target_uncertainty=nothing, segment_length=nothing)
     # Make experiment folders
     if !isdir(save_dir)
         mkdir(save_dir)
@@ -45,14 +47,15 @@ function make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, sa
                         "x_bins" => x_bins, 
                         "chunk_size" => chunk_size,
                         "time_transform" => string(time_transform),
-                        "space_transform" => string(space_transform))
+                        "space_transform" => string(space_transform),
+                        "segment_length" => segment_length)
         open("$(save_dir)/info.json", "w") do f
             JSON.print(f, metadata, 4)
         end
     end
 end
 
-function run_chunk(integrator, q0, Vprime, D, Dprime, tau::Number, dt::Number, steps_to_run::Integer, hist, bin_boundaries, save_dir, repeat::Integer, chunk_number::Integer, save_traj::Bool, time_transform::Bool, space_transform:: Bool, ΣgI::Vector, Σg::Float64, ΣI::Vector, original_D, x_of_y)
+function run_chunk(integrator, q0, Vprime, D, Dprime, tau::Number, dt::Number, steps_to_run::Integer, hist, bin_boundaries, save_dir, repeat::Integer, chunk_number::Integer, save_traj::Bool, time_transform::Bool, space_transform:: Bool, ΣgI::Vector, Σg::Float64, ΣI::Vector, original_D, x_of_y, x::Vector, Dx::Vector, estimate_diffusion_coefficient::Bool, segment_length=100)
     # Run a chunk of the simulation
     q_chunk = integrator(q0, Vprime, D, Dprime, tau, steps_to_run, dt)
     
@@ -78,11 +81,25 @@ function run_chunk(integrator, q0, Vprime, D, Dprime, tau::Number, dt::Number, s
         h5write("$(save_dir)/trajectories/$(string(nameof(integrator)))/h=$dt/$(repeat).$(chunk_number).h5", "data", q_chunk)
     end
 
-    return q0, hist, chunk_number, ΣgI, Σg, ΣI
+    if estimate_diffusion_coefficient
+        if time_transform
+            # get the values of Σg generated in this chunk
+            dt_chunk = Σg[end-length(q_chunk)+1:end]
+            x_chunk, Dx_chunk = run_estimate_diffusion_coefficient_time_rescaling(q_chunk, dt_chunk, tau, segment_length=segment_length) 
+        elseif space_transform
+            x_chunk, Dx_chunk = run_estimate_diffusion_coefficient_lamperti(q_chunk, dt, segment_length=segment_length, x_of_y=x_of_y)
+        else
+            x_chunk, Dx_chunk = run_estimate_diffusion_coefficient(q_chunk, dt, tau, segment_length=segment_length)
+        end
+        append!(x, x_chunk)
+        append!(Dx, Dx_chunk)
+    end
+
+    return q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx
 end
 
-function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=false, space_transform=false, x_of_y=nothing)
-    make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, bin_boundaries, chunk_size, time_transform, space_transform, T=T)
+function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=false, space_transform=false, x_of_y=nothing, estimate_diffusion_coefficient=false, segment_length=100)
+    make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, bin_boundaries, chunk_size, time_transform, space_transform, T=T, segment_length=segment_length)
     
     original_D = D
     original_V = V
@@ -107,16 +124,18 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
 
     @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
     convergence_data = zeros(length(stepsizes), num_repeats)
+    diffusion_coefficient_data = [([], []) for i in 1:length(stepsizes), j in 1:num_repeats]
 
-    for repeat in ProgressBar(1:num_repeats)
+    Threads.@threads for repeat in ProgressBar(1:num_repeats)
 
         Random.seed!(repeat) # set the random seed for reproducibility
-        q0 = init_q0(q0)
+        q0 = init_q0(q0, dim=1)
 
         for (stepsize_idx, dt) in enumerate(stepsizes)
 
             # Initialise for this step size
             steps_remaining = floor(T / dt)                   # total number of steps
+            total_samples = Int(steps_remaining)
             chunk_number = 0                                  # number of chunks run so far
             hist = Hist1D([], bin_boundaries)                 # histogram of the trajectory
             
@@ -127,10 +146,14 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
             # For space-transformed integrators
             ΣI = zeros(length(bin_boundaries)-1)
 
+            # For estimating the diffusion coefficient
+            x = []
+            Dx = []
+
             # Run steps in chunks to avoid memory issues
             while steps_remaining > 0
                 steps_to_run = convert(Int, min(steps_remaining, chunk_size))
-                q0, hist, chunk_number, ΣgI, Σg, ΣI = run_chunk(integrator, q0, Vprime, D, Dprime, tau, dt, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, time_transform, space_transform, ΣgI, Σg, ΣI, original_D, x_of_y)
+                q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx = run_chunk(integrator, q0, Vprime, D, Dprime, tau, dt, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, time_transform, space_transform, ΣgI, Σg, ΣI, original_D, x_of_y, x, Dx, estimate_diffusion_coefficient, segment_length)
                 steps_remaining -= steps_to_run
             end
 
@@ -141,7 +164,11 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
                 empirical_probabilities = ΣI ./ floor(T/dt)
                 convergence_data[stepsize_idx, repeat] = compute_1D_mean_L1_error(empirical_probabilities, probabilities)
             else
-                convergence_data[stepsize_idx, repeat] = compute_1D_mean_L1_error(hist, probabilities)
+                convergence_data[stepsize_idx, repeat] = compute_1D_mean_L1_error(hist, probabilities, total_samples)
+            end
+
+            if estimate_diffusion_coefficient
+                diffusion_coefficient_data[stepsize_idx, repeat] = (x, Dx)
             end
 
             if checkpoint
@@ -150,7 +177,7 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
         end
     end
 
-    save_and_plot(integrator, convergence_data, stepsizes, save_dir)
+    save_and_plot(integrator, convergence_data, diffusion_coefficient_data, stepsizes, save_dir)
 
     # Print the mean and standard deviation of the L1 errors
     @info "Mean L1 errors: $(mean(convergence_data, dims=2))"
@@ -217,7 +244,7 @@ function run_1D_experiment_until_given_uncertainty(integrator, num_repeats, V, D
                     empirical_probabilities = ΣI ./ steps_ran
                     error = compute_1D_mean_L1_error(empirical_probabilities, probabilities)
                 else
-                    error = compute_1D_mean_L1_error(hist, probabilities)
+                    error = compute_1D_mean_L1_error(hist, probabilities, steps_ran)
                 end
             end
 
@@ -243,7 +270,7 @@ function run_1D_experiment_until_given_uncertainty(integrator, num_repeats, V, D
 end
 
 
-function master_1D_experiment(integrators, num_repeats, V, D, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=false, space_transform=false, x_of_y=nothing)
+function master_1D_experiment(integrators, num_repeats, V, D, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=false, space_transform=false, x_of_y=nothing, estimate_diffusion_coefficient=false, segment_length=100)
     to = TimerOutput()
 
     @info "Computing Expected Probabilities"
@@ -253,7 +280,7 @@ function master_1D_experiment(integrators, num_repeats, V, D, T, tau, stepsizes,
     for integrator in integrators
         @info "Running $(string(nameof(integrator))) experiment"
         @timeit to "Exp$(string(nameof(integrator)))" begin 
-            convergence_data = run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, bin_boundaries, save_dir, chunk_size=chunk_size, checkpoint=checkpoint, q0=q0, save_traj=save_traj, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
+            convergence_data = run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, bin_boundaries, save_dir, chunk_size=chunk_size, checkpoint=checkpoint, q0=q0, save_traj=save_traj, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y, estimate_diffusion_coefficient=estimate_diffusion_coefficient, segment_length=segment_length)
         end
     end
 

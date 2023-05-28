@@ -3,12 +3,17 @@ include("calculus.jl")
 include("potentials.jl")
 include("utils.jl")
 include("transform_utils.jl")
-using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs
+include("diffusionTensors.jl")
+include("integrators.jl")
+using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs, LinearAlgebra
 import .Calculus: differentiate2D, symbolic_matrix_divergence2D
-import .Utils: compute_2D_mean_L1_error, compute_2D_probabilities, save_and_plot, init_q0, plot_histograms
+import .Utils: compute_2D_mean_L1_error, compute_2D_probabilities, save_and_plot, init_q0, plot_histograms, assert_isotropic_diagonal_diffusion
+import .DiffusionTensors: Dconst2D
+import .TransformUtils: increment_g_counts2D
+import .Integrators: euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD, stochastic_heun2D_identityD
 
 
-function make_experiment2D_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, x_bins, y_bins, chunk_size; T=nothing, target_uncertainty=nothing)
+function make_experiment2D_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, x_bins, y_bins, chunk_size; T=nothing, target_uncertainty=nothing, time_transform=false)
     # Make experiment folders
     if !isdir(save_dir)
         mkdir(save_dir)
@@ -53,7 +58,8 @@ function make_experiment2D_folders(save_dir, integrator, stepsizes, checkpoint, 
                         "stepsizes" => stepsizes, 
                         "x_bins" => x_bins, 
                         "y_bins" => y_bins,
-                        "chunk_size" => chunk_size)
+                        "chunk_size" => chunk_size,
+                        "time_transform" => time_transform)
         open("$(save_dir)/info.json", "w") do f
             JSON.print(f, metadata, 4)
         end
@@ -61,9 +67,31 @@ function make_experiment2D_folders(save_dir, integrator, stepsizes, checkpoint, 
 end
 
 
-function run_chunk2D(integrator, q0, Vprime, D, div_DDT, tau::Number, dt::Number, steps_to_run::Integer, hist, x_bins, y_bins, save_dir, repeat::Integer, chunk_number::Integer, save_traj::Bool)
+function run_chunk2D(integrator, q0, Vprime, D, div_DDT, tau::Number, dt::Number, steps_to_run::Integer, hist, x_bins, y_bins, save_dir, repeat::Integer, chunk_number::Integer, save_traj::Bool, time_transform::Bool, ΣgI, Σg, D_diag, R; identity_D=false)
+    
     # Run a chunk of the simulation
-    q_chunk = integrator(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+    if identity_D
+        # If the diffusion is identity, we can use a faster integrator
+        if string(nameof(integrator)) == "euler_maruyama2D"
+            q_chunk = euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+            
+        elseif string(nameof(integrator)) == "naive_leimkuhler_matthews2D"
+            q_chunk = naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+
+        elseif string(nameof(integrator)) == "stochastic_heun2D"
+            q_chunk = stochastic_heun2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+        else
+            # Integrator not recognised
+            error("Integrator $(string(nameof(integrator))) does not have a fast version for identity diffusion")
+        end
+    else
+        q_chunk = integrator(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+    end
+
+    # [For time-transformed integrators] Increment g counts
+    if time_transform
+        ΣgI, Σg =  increment_g_counts2D(q_chunk, D_diag, x_bins, y_bins, ΣgI, Σg, R)
+    end
 
     # Set the initial condition to the last value of the previous chunk
     q0 = copy(q_chunk[:, end])  
@@ -77,18 +105,39 @@ function run_chunk2D(integrator, q0, Vprime, D, div_DDT, tau::Number, dt::Number
         h5write("$(save_dir)/trajectories/$(string(nameof(integrator)))/h=$dt/$(repeat).$(chunk_number).h5", "data", q_chunk)
     end
 
-    return q0, hist, chunk_number
+    return q0, hist, chunk_number, ΣgI, Σg
 end
 
-function run_2D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, x_bins, y_bins, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false)
-    make_experiment2D_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, x_bins, y_bins, chunk_size, T=T, target_uncertainty=nothing)
+function run_2D_experiment(integrator, num_repeats, V, D, T, R, tau, stepsizes, probabilities, x_bins, y_bins, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=false)
+    make_experiment2D_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, x_bins, y_bins, chunk_size, T=T, target_uncertainty=nothing, time_transform=time_transform)
    
+    original_V = V
+    original_D = D
+    D_diag = nothing
+
+    if time_transform 
+        assert_isotropic_diagonal_diffusion(D)
+        D_diag = (x,y) -> D(x,y)[1,1]
+        # Transform the potential so that the diffusion is constant
+        V = (x,y) -> original_V(R[1,1]*x + R[1,2]*y, R[2,1]*x + R[2,2]*y) - 2 * tau * log(D_diag(R[1,1]*x + R[1,2]*y, R[2,1]*x + R[2,2]*y))
+        D = Dconst2D
+    end
+
+    if D(0,0) == D(1,1) == D(-0.2354345, 0.21267) == I
+        identity_D = true
+    else
+        identity_D = false
+    end
+
+    println(identity_D)
+
     Vprime = differentiate2D(V)
     DDT = (x,y) -> D(x,y) * Base.transpose(D(x,y))
     div_DDT = symbolic_matrix_divergence2D(DDT)
 
     @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
     convergence_data = zeros(length(stepsizes), num_repeats)
+    convergence_data2 = zeros(length(stepsizes), num_repeats)
     histogram_data = Matrix{Hist2D}(undef, length(stepsizes), num_repeats)
 
     Threads.@threads for repeat in ProgressBar(1:num_repeats)
@@ -100,23 +149,34 @@ function run_2D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
 
             # Initialise for this step size
             steps_remaining = floor(T / dt)                   # total number of steps
-            chunk_number = 0                                  # number of chunks run so far
+            total_samples = Int(steps_remaining)              # total number of steps
+            chunk_number = 0                                  # number of chunks run so far             
 
             # Create an array of zeros with the desired shape
             num_x_bins = length(x_bins) - 1
             num_y_bins = length(y_bins) - 1
             zeros_array = zeros(Int64, num_x_bins, num_y_bins)
 
+            # For time-transformed integrators
+            ΣgI = zeros(Int64, num_x_bins, num_y_bins)     
+            Σg = 0.0  
+
             hist = Hist2D(zeros_array, (x_bins, y_bins))                 # histogram of the trajectory
 
             # Run steps in chunks to avoid memory issues
             while steps_remaining > 0
                 steps_to_run = convert(Int, min(steps_remaining, chunk_size))
-                q0, hist, chunk_number = run_chunk2D(integrator, q0, Vprime, D, div_DDT, tau, dt, steps_to_run, hist, x_bins, y_bins, save_dir, repeat, chunk_number, save_traj)
+                q0, hist, chunk_number, ΣgI, Σg = run_chunk2D(integrator, q0, Vprime, D, div_DDT, tau, dt, steps_to_run, hist, x_bins, y_bins, save_dir, repeat, chunk_number, save_traj, time_transform, ΣgI, Σg, D_diag, R, identity_D=identity_D)
                 steps_remaining -= steps_to_run
             end
 
-            convergence_data[stepsize_idx, repeat] = compute_2D_mean_L1_error(hist, probabilities)
+            if time_transform
+                empirical_probabilities = ΣgI ./ Σg
+                convergence_data[stepsize_idx, repeat] = compute_2D_mean_L1_error(empirical_probabilities, probabilities)
+            else
+                convergence_data[stepsize_idx, repeat] = compute_2D_mean_L1_error(hist, probabilities, total_samples)
+            end
+
             histogram_data[stepsize_idx, repeat] = hist
 
             if checkpoint
@@ -136,7 +196,7 @@ function run_2D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
 end
 
 
-function master_2D_experiment(integrators, num_repeats, V, D, T, tau, stepsizes, xmin, ymin, xmax, ymax, n_bins, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false)
+function master_2D_experiment(integrators, num_repeats, V, D, T, R, tau, stepsizes, xmin, ymin, xmax, ymax, n_bins, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=false)
     to = TimerOutput()
 
     @info "Computing Expected Probabilities"
@@ -146,7 +206,7 @@ function master_2D_experiment(integrators, num_repeats, V, D, T, tau, stepsizes,
     for integrator in integrators
         @info "Running $(string(nameof(integrator))) experiment"
         @timeit to "Exp$(string(nameof(integrator)))" begin 
-            convergence_data = run_2D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, x_bins, y_bins, save_dir, chunk_size=chunk_size, checkpoint=checkpoint, q0=q0, save_traj=save_traj)
+            convergence_data = run_2D_experiment(integrator, num_repeats, V, D, T, R, tau, stepsizes, probabilities, x_bins, y_bins, save_dir, chunk_size=chunk_size, checkpoint=checkpoint, q0=q0, save_traj=save_traj, time_transform=time_transform)
         end
     end
 

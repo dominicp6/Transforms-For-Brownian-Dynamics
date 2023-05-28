@@ -2,41 +2,41 @@ include("integrators.jl")
 include("potentials.jl")
 include("diffusionTensors.jl")
 include("utils.jl")
-include("experiments.jl")
-import .Integrators: euler_maruyamaND, naive_leimkuhler_matthewsND, hummer_leimkuhler_matthewsND, euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D    
-import .Potentials: bowl2D, quadrupleWell2D, moroCardin2D, muller_brown
+include("experiments2D.jl")
+using LinearAlgebra
+import .Integrators: euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, stochastic_heun2D    
+import .Potentials: bowl2D, quadrupleWell2D, moroCardin2D, muller_brown, softQuadrupleWell2D
 import .DiffusionTensors: Dconst2D, Dlinear2D, Dquadratic2D, DmoroCardin, Doseen, DRinvertible
 import .Utils:  compute_2D_probabilities
-import .Experiments: master_2D_experiment
+import .Experiments2D: master_2D_experiment
 
 # Name
-exp_name = "MV_R_LeimkuhlerMatthews"
+exp_name = "MV_5M_TT"
 
 # Integrator Params
-T = 100
+T = 5000000
 tau = 1
 
 # Experiment Params
-num_repeats = 11
-num_step_sizes = 8
-integrators = [naive_leimkuhler_matthewsND]
-stepsizes = 10 .^ range(-4.0,stop=-3.2,length=num_step_sizes)
+num_repeats = 12
+num_step_sizes = 10
+integrators = [euler_maruyama2D, naive_leimkuhler_matthews2D, stochastic_heun2D]
+stepsizes = 10 .^ range(-2.5,stop=-0.5,length=num_step_sizes)
 println(stepsizes)
 # Histogram parameters
-xmin = -5
-xmax = 5
-ymin = -5
-ymax = 5
+xmin = -3
+xmax = 3
+ymin = -3
+ymax = 3
 n_bins = 30
 
 #Potential and diffusion 
-potential = quadrupleWell2D
-diffusion = DRinvertible
+potential = softQuadrupleWell2D
+diffusion = DmoroCardin
+R = Matrix{Float64}(I, 2, 2)
 
 # Transformations
-time_transform = false
-space_transform = false
-x_of_y = y -> (y/4) * (abs(y) + 4)
+time_transform = true
 checkpoint = true
 save_traj = false
 
@@ -45,4 +45,4 @@ save_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
 
 # Run the experiments
 @info "Running: $(exp_name)"
-master_2D_experiment(integrators, num_repeats, potential, diffusion, T, tau, stepsizes, xmin, ymin, xmax, ymax, n_bins, save_dir, chunk_size=1000000, checkpoint=false, q0=nothing, save_traj=false)
+master_2D_experiment(integrators, num_repeats, potential, diffusion, T, R, tau, stepsizes, xmin, ymin, xmax, ymax, n_bins, save_dir, chunk_size=1000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=time_transform)

@@ -1,6 +1,6 @@
 module TransformUtils
 using FHist, StatsBase
-export increment_g_counts, time_transformed_potential, increment_I_counts
+export increment_g_counts, time_transformed_potential, increment_I_counts, increment_g_counts2D
 
 function time_transformed_potential(x, V, D, tau)
     return V(x) - tau * log(D(x))
@@ -31,6 +31,26 @@ function increment_g_counts(q_chunk, D, bin_boundaries, ΣgI, Σg)
         # only count points that are in the domain of the specified bins
         if bin_index != 0 && bin_index != length(bin_boundaries)
             ΣgI[bin_index] += g(q)
+        end
+    end
+
+    return ΣgI, Σg
+end
+
+
+function increment_g_counts2D(q_chunk, D, x_bins, y_bins, ΣgI, Σg, R)
+    g(x,y) = 1/D(x,y)^2
+    
+    # Iterate through trajectory points and assign to corresponding bin
+    for q in eachcol(q_chunk)
+        Σg += g(q[1], q[2])
+
+        # Find the index of the histogram bin that q is in
+        bin_index1 = searchsortedfirst(x_bins, R[1,1]*q[1]+R[1,2]*q[2]) - 1
+        bin_index2 = searchsortedfirst(y_bins, R[2,1]*q[1]+R[2,2]*q[2]) - 1
+        # only count points that are in the domain of the specified bins
+        if bin_index1 != 0 && bin_index1 != length(x_bins) && bin_index2 != 0 && bin_index2 != length(y_bins)
+            ΣgI[bin_index1, bin_index2] += g(q[1], q[2])
         end
     end
 

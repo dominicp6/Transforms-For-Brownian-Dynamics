@@ -1,6 +1,6 @@
 module Utils
 using HCubature, QuadGK, FHist, HDF5, Statistics, StatsBase, Plots
-export compute_1D_probabilities, compute_2D_probabilities, compute_1D_mean_L1_error, compute_2D_mean_L1_error, save_and_plot, init_q0, plot_heatmap, plot_histograms
+export compute_1D_probabilities, compute_2D_probabilities, compute_1D_mean_L1_error, compute_2D_mean_L1_error, save_and_plot, init_q0, plot_heatmap, plot_histograms, assert_isotropic_diagonal_diffusion
 
 function compute_2D_probabilities(V, tau, xmin, ymin, xmax, ymax, n_bins)
     # Compute the expected counts in a 2D histogram of the configuration space
@@ -55,29 +55,14 @@ function compute_1D_probabilities(V, tau, bins; configuration_space=(-12,12))
     return prob
 end
 
-
-# function compute_2D_mean_L1_error(q_traj, probabilities, x_bins, y_bins, n_bins)
-#     # Compute the mean L1 error between the expected probability and
-#     # the actual probability distributions across all bins of a 2D histogram
-
-#     # Compute the histogram
-#     h2 = Hist2D(collect(eachrow(q_traj)), (x_bins, y_bins))
-
-#     # Compute the means L1 error between the expected probability and the actual probability distributions
-#     mean_error = sum(abs.(bincounts(h2)/length(q_traj[1, :]) .- probabilities)) / (n_bins * n_bins)
-
-#     return h2, mean_error
-# end
-
-function compute_1D_mean_L1_error(empirical_histogram::Hist1D, theoretical_probabilities::Vector{Float64})
+function compute_1D_mean_L1_error(empirical_histogram::Hist1D, theoretical_probabilities::Vector{Float64}, total_samples::Int64)
     # Compute the mean L1 error between the expected probability and
     # the actual probability distributions across all bins of a 1D histogram
 
-    n_samples = integral(empirical_histogram)
     n_bins = nbins(empirical_histogram)
 
     # Compute the means L1 error between the expected probability and the actual probability distributions
-    mean_error = sum(abs.(bincounts(empirical_histogram)/n_samples .- theoretical_probabilities)) / (n_bins)
+    mean_error = sum(abs.(bincounts(empirical_histogram)/total_samples .- theoretical_probabilities)) / (n_bins)
 
     return mean_error
 end
@@ -94,15 +79,14 @@ function compute_1D_mean_L1_error(empirical_probabilities::Vector{Float64}, theo
     return mean_error
 end
 
-function compute_2D_mean_L1_error(empirical_histogram::Hist2D, theoretical_probabilities::Matrix{Float64})
+function compute_2D_mean_L1_error(empirical_histogram::Hist2D, theoretical_probabilities::Matrix{Float64}, total_samples::Int64)
     # Compute the mean L1 error between the expected probability and
     # the actual probability distributions across all bins of a 2D histogram
 
-    n_samples = integral(empirical_histogram)
     n_bins_x, n_bins_y = nbins(empirical_histogram)
 
     # Compute the means L1 error between the expected probability and the actual probability distributions
-    mean_error = sum(abs.(bincounts(empirical_histogram)/n_samples .- theoretical_probabilities)) / (n_bins_x * n_bins_y)
+    mean_error = sum(abs.(bincounts(empirical_histogram)/total_samples .- theoretical_probabilities)) / (n_bins_x * n_bins_y)
 
     return mean_error
 end
@@ -118,6 +102,28 @@ function compute_2D_mean_L1_error(empirical_probabilities::Matrix{Float64}, theo
     mean_error = sum(abs.(empirical_probabilities .- theoretical_probabilities)) / (n_bins_x * n_bins_y)
 
     return mean_error
+end
+
+function save_and_plot(integrator, convergence_data, diffusion_coefficient_data, stepsizes, save_dir; xlabel="dt", ylabel="Mean L1 error", error_in_mean=false)
+    @info "Saving data"
+    h5write("$(save_dir)/$(integrator).h5", "data", convergence_data)
+
+    number_of_repeats = size(convergence_data, 2)
+
+    # Plot (dim 1 is the step size, dim 2 is the repeat)
+    plot(stepsizes, mean(convergence_data, dims=2), title=string(nameof(integrator)), xlabel=xlabel, ylabel=ylabel, xscale=:log10, yscale=:log10, label="")
+    if error_in_mean
+        plot!(stepsizes, mean(convergence_data, dims=2)+std(convergence_data, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
+        plot!(stepsizes, mean(convergence_data, dims=2)-std(convergence_data, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
+    else
+        plot!(stepsizes, mean(convergence_data, dims=2)+std(convergence_data, dims=2), ls=:dash, lc=:black, label="")
+        plot!(stepsizes, mean(convergence_data, dims=2)-std(convergence_data, dims=2), ls=:dash, lc=:black, label="")
+    end
+    savefig("$(save_dir)/$(integrator).png")
+
+    # Plot the diffusion coefficient
+    plot(diffusion_coefficient_data[1,1][1], diffusion_coefficient_data[1,1][2], title=string(nameof(integrator)), xlabel="x", ylabel="Diffusion coefficient")
+    savefig("$(save_dir)/$(integrator)_diffusion.png")
 end
 
 function save_and_plot(integrator, convergence_data, stepsizes, save_dir; xlabel="dt", ylabel="Mean L1 error", error_in_mean=false)
@@ -150,6 +156,9 @@ function init_q0(q0; dim::Int = 1)
     if q0 === nothing
         q0 = randn(dim)
     end
+    if dim == 1
+        q0 = q0[1]
+    end
     return q0
 end
 
@@ -165,6 +174,17 @@ function plot_heatmap(hist::Hist2D, repeat, save_dir, integrator, dt; xlabel, yl
 
     # Save heatmap
     savefig(h, "$(save_dir)/heatmaps/$(string(nameof(integrator)))/h=$dt/$(repeat).png")
+end
+
+
+function assert_isotropic_diagonal_diffusion(D) 
+    # Assert that D is a diagonal, isotropic matrix
+    D1 = (x,y) -> D(x,y)[1,1]
+    D2 = (x,y) -> D(x,y)[2,2]
+    Doff1 = (x,y) -> D(x,y)[1,2]
+    Doff2 = (x,y) -> D(x,y)[2,1]
+    @assert Doff1(0.123,-0.736) == Doff2(0.123,-0.736) == 0 "D must be diagonal"
+    @assert D1(0.123,-0.736) == D2(0.123,-0.736) "D must be isotropic"
 end
 
 end # module Utils
