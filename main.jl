@@ -40,8 +40,8 @@ save_traj = false
 
 # Do not modify below this line ----------------------------------------------
 bin_boundaries = range(xmin, xmax, length=n_bins+1)
-#save_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
-save_dir = "C:/Users/domph.000/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
+save_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
+#save_dir = "C:/Users/domph.000/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
 # Run the experiments
 @info "Running: $(exp_name)"
 master_1D_experiment(integrators, num_repeats, potential, diffusion, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=checkpoint, q0=nothing, save_traj=save_traj, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
