@@ -1,8 +1,8 @@
 module Integrators
 include("calculus.jl")
-using LinearAlgebra, Random, Plots, ForwardDiff, Base.Threads, ProgressBars, .Calculus
+using LinearAlgebra, Random, Plots, ForwardDiff, Base.Threads, ProgressBars
 using .Calculus: symbolic_matrix_divergence2D
-export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD
+export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD, leimkuhler_matthews1D, leimkuhler_matthews2D
 
 function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
@@ -139,6 +139,9 @@ function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, d
         # update the noise increment
         Rₖ = copy(Rₖ₊₁)
     end
+
+    return q_traj
+end
 
 function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
@@ -461,11 +464,14 @@ function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, 
         
         # Update the trajectory
         q = qₖ₊₁
-        q_traj[i] = q
+        q_traj[:, i] = q
         
         # update the time
         t += dt
     end
+
+    return q_traj
+end
 
 function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
