@@ -1,6 +1,7 @@
 module Integrators
 include("calculus.jl")
 using LinearAlgebra, Random, Plots, ForwardDiff, Base.Threads, ProgressBars, .Calculus
+using .Calculus: symbolic_matrix_divergence2D
 export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD
 
 function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
@@ -66,12 +67,78 @@ function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Inte
         # update the time
         t += dt
 
-        # update the last increment
+        # update the noise increment
         Rₖ = copy(Rₖ₊₁)      
     end 
     
     return q_traj
 end
+
+function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
+    # q0 is the initial configuration
+    # V is a function that computes the potential energy at a given configuration
+    # D is a function that computes the diffusion coefficient at a given configuration
+    # tau is the time scale for diffusion
+    # m is the number of steps
+    # dt is the time step
+    
+    # set up
+    t = 0.0
+    q = copy(q0)
+    q_traj = zeros(m)
+    Rₖ = randn()
+
+    # number of inner loop steps
+    n = 5
+
+    # tau = 1 in the following
+    # simulate
+    for i in 1:m
+        Dq = D(q)
+        grad_V = Vprime(q)
+        grad_D = Dprime(q)
+        hat_pₖ₊₁ = Rₖ - sqrt(2 * dt) * Dq * grad_V + sqrt(2 * dt) * grad_D
+        
+        sqrt_h_2 = sqrt(dt / 2)
+        inner_step = sqrt_h_2 / n  # Divide by n for each internal RK4 step
+        
+        # Perform n steps of RK4 integration for hat_qₖ₊₁
+        hat_qₖ₊₁ = q # Initialize hat_qₖ₊₁
+        for j in 1:n
+            # Compute intermediate values
+            k1 = inner_step * D(hat_qₖ₊₁) * hat_pₖ₊₁
+            k2 = inner_step * D(hat_qₖ₊₁ + 0.5 * k1) * hat_pₖ₊₁
+            k3 = inner_step * D(hat_qₖ₊₁ + 0.5 * k2) * hat_pₖ₊₁
+            k4 = inner_step * D(hat_qₖ₊₁ + k3) * hat_pₖ₊₁
+            
+            # Update state using weighted average of intermediate values
+            hat_qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        end
+        
+        # Perform n steps of RK4 integration for qₖ₊₁
+        qₖ₊₁ = hat_qₖ₊₁ # Initialize qₖ₊₁
+        Rₖ₊₁ = randn()
+        for j in 1:n
+            # Compute intermediate values
+            k1 = inner_step * D(qₖ₊₁) * Rₖ₊₁
+            k2 = inner_step * D(qₖ₊₁ + 0.5 * k1) * Rₖ₊₁
+            k3 = inner_step * D(qₖ₊₁ + 0.5 * k2) * Rₖ₊₁
+            k4 = inner_step * D(qₖ₊₁ + k3) * Rₖ₊₁
+            
+            # Update state using weighted average of intermediate values
+            qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        end
+        
+        # Update the trajectory
+        q = qₖ₊₁
+        q_traj[i] = q
+        
+        # update the time
+        t += dt
+
+        # update the noise increment
+        Rₖ = copy(Rₖ₊₁)
+    end
 
 function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
@@ -104,7 +171,7 @@ function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Int
         # update the time
         t += dt
 
-        # update the last increment
+        # update the noise increment
         Rₖ = copy(Rₖ₊₁)      
     end 
     
@@ -287,7 +354,7 @@ function naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau::Numb
         # update the time
         t += dt
 
-        # update the last increment
+        # update the noise increment
         Rₖ = copy(Rₖ₊₁)      
     end 
     
@@ -327,12 +394,78 @@ function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Int
         # update the time
         t += dt
 
-        # update the last increment
+        # update the noise increment
         Rₖ = copy(Rₖ₊₁)      
     end 
     
     return q_traj
 end
+
+function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+    # q0 is the initial configuration
+    # V is a function that computes the potential energy at a given configuration
+    # D is a function that computes the diffusion coefficient at a given configuration
+    # tau is the time scale for diffusion
+    # m is the number of steps
+    # dt is the time step
+    
+    # set up
+    t = 0.0
+    q = copy(q0)
+    l = length(q0)
+    q_traj = zeros(l, m)
+    Rₖ = randn(l)
+
+    # number of inner loop steps
+    n = 5
+
+    # Get symbolic divergence of diffusion tensor
+    div_D = symbolic_matrix_divergence2D(D)
+
+    # tau = 1 in the following
+    # simulate
+    for i in 1:m
+        Dq = D(q)
+        grad_V = Vprime(q)
+        div_D = div_D(q)
+        hat_pₖ₊₁ = Rₖ - sqrt(2 * dt) * Dq * grad_V + sqrt(2 * dt) * div_D
+        
+        sqrt_h_2 = sqrt(dt / 2)
+        inner_step = sqrt_h_2 / n  # Divide by n for each internal RK4 step
+        
+        # Perform n steps of RK4 integration for hat_qₖ₊₁
+        hat_qₖ₊₁ = q # Initialize hat_qₖ₊₁
+        for j in 1:n
+            # Compute intermediate values
+            k1 = inner_step * D(hat_qₖ₊₁) * hat_pₖ₊₁
+            k2 = inner_step * D(hat_qₖ₊₁ + 0.5 * k1) * hat_pₖ₊₁
+            k3 = inner_step * D(hat_qₖ₊₁ + 0.5 * k2) * hat_pₖ₊₁
+            k4 = inner_step * D(hat_qₖ₊₁ + k3) * hat_pₖ₊₁
+            
+            # Update state using weighted average of intermediate values
+            hat_qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        end
+        
+        # Perform n steps of RK4 integration for qₖ₊₁
+        qₖ₊₁ = hat_qₖ₊₁ # Initialize qₖ₊₁
+        for j in 1:n
+            # Compute intermediate values
+            k1 = inner_step * D(qₖ₊₁) * Rₖ₊₁
+            k2 = inner_step * D(qₖ₊₁ + 0.5 * k1) * Rₖ₊₁
+            k3 = inner_step * D(qₖ₊₁ + 0.5 * k2) * Rₖ₊₁
+            k4 = inner_step * D(qₖ₊₁ + k3) * Rₖ₊₁
+            
+            # Update state using weighted average of intermediate values
+            qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        end
+        
+        # Update the trajectory
+        q = qₖ₊₁
+        q_traj[i] = q
+        
+        # update the time
+        t += dt
+    end
 
 function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
     # q0 is the initial configuration
