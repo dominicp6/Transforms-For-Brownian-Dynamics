@@ -10,6 +10,7 @@ import .Calculus: differentiate1D
 import .Utils: compute_1D_mean_L1_error, compute_1D_probabilities, save_and_plot, init_q0
 import .TransformUtils: increment_g_counts, increment_I_counts
 import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
+import .DiffusionTensors: Dconst1D
 export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_uncertainty
 
 function make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, save_traj, num_repeats, V, D, tau, x_bins, chunk_size, time_transform, space_transform; T=nothing, target_uncertainty=nothing, segment_length=nothing)

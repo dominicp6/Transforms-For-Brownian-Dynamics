@@ -20,7 +20,7 @@ tau = 1
 num_repeats = 12
 num_step_sizes = 10
 integrators = [leimkuhler_matthews1D]
-stepsizes = 10 .^ range(-2,stop=-1.4,length=num_step_sizes)
+stepsizes = 10 .^ range(-3,stop=-1,length=num_step_sizes)
 println(stepsizes)
 # Histogram parameters
 xmin = -5
