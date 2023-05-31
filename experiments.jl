@@ -56,7 +56,7 @@ function make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, sa
     end
 end
 
-function run_chunk(integrator, q0, Vprime, D, Dprime, tau::Number, dt::Number, steps_to_run::Integer, hist, bin_boundaries, save_dir, repeat::Integer, chunk_number::Integer, save_traj::Bool, time_transform::Bool, space_transform:: Bool, ΣgI::Vector, Σg::Float64, ΣI::Vector, original_D, x_of_y, x::Vector, Dx::Vector, estimate_diffusion_coefficient::Bool, segment_length=100)
+function run_chunk(integrator, q0, Vprime, D, Dprime, tau::Number, dt::Number, steps_to_run::Integer, hist, bin_boundaries, save_dir, repeat::Integer, chunk_number::Integer, save_traj::Bool, time_transform::Bool, space_transform:: Bool, ΣgI::Union{Vector, Nothing}, Σg::Union{Float64, Nothing}, ΣI::Union{Vector, Nothing}, original_D, x_of_y; x::Union{Vector,Nothing}=nothing, Dx::Union{Vector,Nothing}=nothing, estimate_diffusion_coefficient::Bool=false, segment_length=100)
     # Run a chunk of the simulation
     q_chunk = integrator(q0, Vprime, D, Dprime, tau, steps_to_run, dt)
     

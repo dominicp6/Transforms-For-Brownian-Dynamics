@@ -55,6 +55,24 @@ function compute_1D_probabilities(V, tau, bins; configuration_space=(-12,12))
     return prob
 end
 
+function compute_1D_mean_L1_error(empirical_histogram::Hist1D, reference_histogram::Hist1D)
+    # Compute the mean L1 error between the expected probability and
+    # the actual probability distributions across all bins of a 1D histogram
+
+    n_bins = nbins(empirical_histogram)
+    
+    # Assert that the histograms have the same bin boundaries
+    @assert binedges(empirical_histogram) == binedges(reference_histogram) "Histograms must have the same bin boundaries"
+
+    num_samples_empirical = sum(bincounts(empirical_histogram))
+    num_samples_reference = sum(bincounts(reference_histogram))
+
+    # Compute the means L1 error between the expected probability and the actual probability distributions
+    mean_error = sum(abs.(bincounts(empirical_histogram)/num_samples_empirical .- bincounts(reference_histogram)/num_samples_reference)) / (n_bins)
+
+    return mean_error
+end
+
 function compute_1D_mean_L1_error(empirical_histogram::Hist1D, theoretical_probabilities::Vector{Float64}, total_samples::Int64)
     # Compute the mean L1 error between the expected probability and
     # the actual probability distributions across all bins of a 1D histogram
