@@ -10,20 +10,19 @@ import .Utils: compute_1D_probabilities
 import .FiniteTimeExperiments: run_1D_finite_time_convergence_experiment
 
 # Name
-exp_name = "finite_time_test_10M"
+exp_name = "finite_time_100M"
 
 # Integrator Params
-T = 0.5
-ΔT = 0.01
+T = 4.096     # 0.5
+ΔT = 0.064  # 0.01
 tau = 1
 
 # Experiment Params
-num_repeats = 10000000
-# num_step_sizes = 4
+num_repeats = 100000000
 integrators = [euler_maruyama1D, naive_leimkuhler_matthews1D, leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, hummer_leimkuhler_matthews1D]
 reference_integrator = stochastic_heun1D
-reference_stepsize = 0.0002
-stepsizes = [0.0016]#, 0.024, 0.032, 0.048]
+reference_stepsize = 0.0001
+stepsizes = [0.008, 0.016, 0.024, 0.032]
 println(stepsizes)
 # Histogram parameters
 xmin = -5
@@ -33,7 +32,6 @@ n_bins = 30
 #Potential and diffusion 
 potential = softWell1D
 diffusion = Dlinear1D
-
 
 # Transformations
 time_transform = true
@@ -46,4 +44,4 @@ save_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
 #save_dir = "C:/Users/domph.000/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
 # Run the experiments
 @info "Running: $(exp_name)"
-run_1D_finite_time_convergence_experiment(integrators, reference_integrator, reference_stepsize, num_repeats, potential, diffusion, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10, mu0=0, sigma0=1, save_traj=false, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
+run_1D_finite_time_convergence_experiment(integrators, reference_integrator, reference_stepsize, num_repeats, potential, diffusion, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000, mu0=0, sigma0=1, save_traj=false, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)

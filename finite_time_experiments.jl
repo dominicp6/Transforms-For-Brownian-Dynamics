@@ -100,7 +100,7 @@ function create_experiment_folders(save_dir, integrators, reference_intgrator, r
     end
 end
 
-function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=10, save_traj=false, mu0=nothing, sigma0=nothing, reference_simulation=false)
+function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, save_traj=false, mu0=nothing, sigma0=nothing, reference_simulation=false)
     # ΔT is the time between saving distribution snapshots
 
     # Set mean and variance of ρ₀ distribution if not specified 
@@ -121,36 +121,53 @@ function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, ta
 
     # Initialise q0 final values
     number_of_snapshots = Int(floor(T / ΔT))
-    q0_finals = zeros(number_of_snapshots+1, num_repeats)
 
-    Threads.@threads for repeat in ProgressBar(1:num_repeats)
-        hist = Hist1D([], bin_boundaries)                     # histogram of the trajectory
-        q0 = mu0 + sigma0 * randn()
+    repeats_remaining = num_repeats
+    histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
+    while repeats_remaining > 0
+        repeats_to_run = convert(Int, min(num_repeats, chunk_size))
+        q0_finals = zeros(number_of_snapshots, repeats_to_run)
 
-        # Simulate until T, saving the distribution every ΔT
-        for snapshot_number in 1:number_of_snapshots
-            steps_remaining = floor(ΔT / stepsize)            # total number of steps
-            chunk_number = 0                                  # number of chunks run so far
+        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)
+            hist = Hist1D([], bin_boundaries)                     # histogram of the trajectory
+            q0 = mu0 + sigma0 * randn()
 
-            while steps_remaining > 0
-                steps_to_run = convert(Int, min(steps_remaining, chunk_size))
-                q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, false, false, nothing, nothing, nothing, nothing, nothing)
-                steps_remaining -= steps_to_run
+            # Simulate until T, saving the distribution every ΔT
+            for snapshot_number in 1:number_of_snapshots
+                steps_remaining = floor(ΔT / stepsize)            # total number of steps
+                chunk_number = 0                                  # number of chunks run so far
+
+                while steps_remaining > 0
+                    steps_to_run = convert(Int, min(steps_remaining, chunk_size))
+                    q0, hist, chunk_number, _, _, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, false, false, nothing, nothing, nothing, nothing, nothing)
+                    steps_remaining -= steps_to_run
+                end
+
+                # Save the q0 final values
+                q0_finals[snapshot_number, repeat] = q0
             end
+        end
 
-            # Save the q0 final values
-            q0_finals[snapshot_number, repeat] = q0
+        repeats_remaining -= repeats_to_run
+
+        # Construct new histograms
+        new_histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+
+        # Add new histograms to existing histograms
+        for i in eachindex(histograms)
+            histograms[i] += new_histograms[i]
         end
     end
 
-    # Plot histograms
-    # for i in 1:(number_of_snapshots)
-    #     display(histogram(q0_finals[i, :], bins=bin_boundaries, title="Integrator $(string(nameof(integrator))), Snapshot $(i)", xlabel="q0", ylabel="Frequency"))
+    # Plot the histograms
+    # for (i, hist) in enumerate(histograms)
+    #     plot_title = "$(string(nameof(integrator))),$(round(stepsize,digits=3)),$(i)"
+    #     println("bincenters(hist) = $(bincenters(hist))")
+    #     println("bincounts(hist) = $(bincounts(hist))")
+    #     display(plot(bincenters(hist), bincounts(hist), xlabel="x", ylabel="y", title=plot_title))
+    #     println("Press any key to continue:")
+    #     readline()
     # end
-
-
-    # Construct the histograms
-    histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
 
     # Save the histograms
     if reference_simulation
@@ -162,7 +179,7 @@ function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, ta
     return histograms
 end
 
-function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=10, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing)
+function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing)
     # ΔT is the time between saving distribution snapshots
 
     # Set mean and variance of ρ₀ distribution if not specified 
@@ -173,7 +190,6 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
     if (sigma0 === nothing)
         sigma0 = 1
     end
-
     
     # Transform the potential so that the diffusion is constant
     V = x -> original_V(x) - tau * log(original_D(x))
@@ -183,66 +199,99 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
     Vprime = differentiate1D(V)
     Dprime = differentiate1D(D)
 
+    # Run a single chunk to estimate the time rescaling factor
+    q0 = mu0 + sigma0 * randn()
+    ΣgI = zeros(length(bin_boundaries)-1)            
+    Σg = 0.0
+    hist = Hist1D([], bin_boundaries) 
+    chunk_number = 0
+    steps_to_run = 1000
+    repeat = 0
+    q0, hist, chunk_number, ΣgI, Σg, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
+    TRS = Σg / steps_to_run
+
     # Run the experiment
     @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
 
     # Initialise q0 final values
     number_of_snapshots = Int(floor(T / ΔT))
-    q0_finals = zeros(number_of_snapshots, num_repeats)
+    repeats_remaining = num_repeats
+    histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
+    while repeats_remaining > 0
+        repeats_to_run = convert(Int, min(num_repeats, chunk_size))
+        q0_finals = zeros(number_of_snapshots, repeats_to_run)
 
-    Threads.@threads for repeat in ProgressBar(1:num_repeats)
-        hist = Hist1D([], bin_boundaries)            # histogram of the trajectory   
+        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)
+            hist = Hist1D([], bin_boundaries)            # histogram of the trajectory   
 
-        q0 = mu0 + sigma0 * randn()
+            q0 = mu0 + sigma0 * randn()
 
-        # Simulate until T, saving the distribution every ΔT
-        for snapshot_number in 1:number_of_snapshots
-            time_remaining = ΔT                      # total time remaining for this snapshot
-            chunk_number = 0                         # number of chunks run so far
-            
-            # For time-transformed integrators
-            ΣgI = zeros(length(bin_boundaries)-1)            
-            Σg = 0.0
-            previous_Σg = Σg
-            previous_q0 = q0
-
-            chunk_size_to_run = chunk_size
-
-            # Run chunks until overshoot
-            time_ran = 0.0
-            while time_remaining > 0
+            # Simulate until T, saving the distribution every ΔT
+            for snapshot_number in 1:number_of_snapshots
+                time_remaining = ΔT                      # total time remaining for this snapshot
+                chunk_number = 0                         # number of chunks run so far
+                
+                # For time-transformed integrators
+                ΣgI = zeros(length(bin_boundaries)-1)            
+                Σg = 0.0
                 previous_Σg = Σg
                 previous_q0 = q0
-                steps_to_run = chunk_size_to_run
-                q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
-                time_ran = Σg - previous_Σg
-                time_remaining -= time_ran
+
+                while time_remaining > 0
+                    previous_Σg = Σg
+                    previous_q0 = q0
+                    # Run 80% of the estimated steps remaining, plus one extra to allow for overshoot
+                    estimated_steps_remaining = Int(floor(0.5 * time_remaining / (stepsize * TRS)) + 1)
+                    steps_to_run = convert(Int, min(estimated_steps_remaining, chunk_size))
+                    q0, hist, chunk_number, ΣgI, Σg, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
+                    delta_t = (Σg - previous_Σg) * stepsize
+                    time_remaining -= delta_t
+                end
+
+                # Run steps individually until overshoot 
+                steps_to_run = 1              
+                Σg = previous_Σg
+                q0 = previous_q0
+                time_remaining += delta_t
+                delta_t = 0.0
+                while time_remaining > 0
+                    previous_Σg = Σg
+                    previous_q0 = q0
+                    q0, hist, chunk_number, ΣgI, Σg, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
+                    delta_t = (Σg - previous_Σg) * stepsize
+                    time_remaining -= delta_t
+                end
+
+                # Once the time is overshot, run a partial step to reach the correct time
+                partial_stepsize = stepsize * (1 + time_remaining / delta_t)
+                q0, _, _, _, _, _, _, _ = run_chunk(integrator, previous_q0, Vprime, D, Dprime, tau, partial_stepsize, 1, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
+
+                # Save the q0 final values
+                q0_finals[snapshot_number, repeat] = q0
             end
-
-            # Backtrack one chunk and then run steps individually until overshoot 
-            steps_to_run = 1              # run one step at a time
-            q0 = previous_q0
-            Σg = previous_Σg
-            delta_t = nothing
-            time_remaining += time_ran    # time_remaining is now the time remaining in the last chunk
-            while time_remaining > 0
-                previous_Σg = Σg
-                previous_q0 = q0
-                q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
-                delta_t = Σg - previous_Σg
-                time_remaining -= delta_t
-            end
-
-            # Interpolate to find the final position
-            q0 = previous_q0 + (q0 - previous_q0) * ((delta_t + time_remaining) / delta_t)   # time_remaining is now negative
-
-            # Save the q0 final values
-            q0_finals[snapshot_number, repeat] = q0
         end
+
+        repeats_remaining -= repeats_to_run
+
+        # Construct new histograms
+        new_histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+
+        # Add new histograms to existing histograms
+        for i in eachindex(histograms)
+            histograms[i] += new_histograms[i]
+        end
+
     end
 
-    # Construct the histograms
-    histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+    # # Plot the histograms
+    # for (i, hist) in enumerate(histograms)
+    #     plot_title = "$(string(nameof(integrator))),$(round(stepsize,digits=3)),$(i)"
+    #     println("bincenters(hist) = $(bincenters(hist))")
+    #     println("bincounts(hist) = $(bincounts(hist))")
+    #     display(plot(bincenters(hist), bincounts(hist), xlabel="x", ylabel="y", title=plot_title))
+    #     println("Press any key to continue:")
+    #     readline()
+    # end
 
     # Save the histograms
     save("$(save_dir)/$(string(nameof(integrator)))/time_transformed/histograms.jld2", "data", histograms)
@@ -250,7 +299,7 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
     return histograms
 end
 
-function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=10, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing, x_of_y=nothing)
+function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing, x_of_y=nothing)
     # ΔT is the time between saving distribution snapshots
 
     # Set mean and variance of ρ₀ distribution if not specified 
@@ -276,31 +325,44 @@ function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, 
 
     # Initialise q0 final values
     number_of_snapshots = Int(floor(T / ΔT))
-    q0_finals = zeros(number_of_snapshots, num_repeats)
+    repeats_remaining = num_repeats
+    histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
+    while repeats_remaining > 0
+        repeats_to_run = convert(Int, min(num_repeats, chunk_size))
+        q0_finals = zeros(number_of_snapshots, repeats_to_run)
 
-    Threads.@threads for repeat in ProgressBar(1:num_repeats)
-        hist = Hist1D([], bin_boundaries)                     # histogram of the trajectory
-        q0 = mu0 + sigma0 * randn()
+        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)
+            hist = Hist1D([], bin_boundaries)                     # histogram of the trajectory
+            q0 = mu0 + sigma0 * randn()
 
-        # Simulate until T, saving the distribution every ΔT
-        for snapshot_number in 1:number_of_snapshots
-            steps_remaining = floor(ΔT / stepsize)            # total number of steps
-            chunk_number = 0                                  # number of chunks run so far
-            ΣI = zeros(length(bin_boundaries)-1)           
+            # Simulate until T, saving the distribution every ΔT
+            for snapshot_number in 1:number_of_snapshots
+                steps_remaining = floor(ΔT / stepsize)            # total number of steps
+                chunk_number = 0                                  # number of chunks run so far
+                ΣI = zeros(length(bin_boundaries)-1)           
 
-            while steps_remaining > 0
-                steps_to_run = convert(Int, min(steps_remaining, chunk_size))
-                q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, false, true, nothing, nothing, ΣI, nothing, x_of_y)
-                steps_remaining -= steps_to_run
+                while steps_remaining > 0
+                    steps_to_run = convert(Int, min(steps_remaining, chunk_size))
+                    q0, hist, chunk_number, _, _, ΣI, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, false, true, nothing, nothing, ΣI, nothing, x_of_y)
+                    steps_remaining -= steps_to_run
+                end
+
+                # Save the q0 final values, transformed back to the original space
+                q0_finals[snapshot_number, repeat] = x_of_y(q0)
             end
-
-            # Save the q0 final values, transformed back to the original space
-            q0_finals[snapshot_number, repeat] = x_of_y(q0)
         end
-    end
 
-    # Construct the histograms
-    histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+        repeats_remaining -= repeats_to_run
+
+        # Construct new histograms
+        new_histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+
+        # Add new histograms to existing histograms
+        for i in eachindex(histograms)
+            histograms[i] += new_histograms[i]
+        end
+
+    end
 
     # Save the histograms
     save("$(save_dir)/$(string(nameof(integrator)))/space_transformed/histograms.jld2", "data", histograms)
@@ -308,7 +370,7 @@ function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, 
     return histograms
 end
 
-function run_1D_finite_time_convergence_experiment(integrators, reference_integrator, reference_stepsize, num_repeats, V, D, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10, save_traj=false, mu0=nothing, sigma0=nothing, time_transform=false, space_transform=false, x_of_y=nothing)
+function run_1D_finite_time_convergence_experiment(integrators, reference_integrator, reference_stepsize, num_repeats, V, D, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=1000, save_traj=false, mu0=nothing, sigma0=nothing, time_transform=false, space_transform=false, x_of_y=nothing)
     # ΔT is the time between saving distribution snapshots
     create_experiment_folders(save_dir, integrators, reference_integrator, reference_stepsize, time_transform, space_transform, stepsizes, num_repeats, V, D, tau, bin_boundaries, chunk_size, ΔT, T)
     number_of_snapshots = Int(floor(T / ΔT))
