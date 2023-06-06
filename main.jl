@@ -10,17 +10,17 @@ import .Utils: compute_1D_probabilities
 import .Experiments: master_1D_experiment, run_1D_experiment_until_given_uncertainty
 
 # Name
-exp_name = "baoab_limit_method"
+exp_name = "baoab_limit_method_corrected_75M"
 
 # Integrator Params
-T = 50000000
+T = 75000000
 tau = 1
 
 # Experiment Params
 num_repeats = 12
 num_step_sizes = 10
 integrators = [leimkuhler_matthews1D]
-stepsizes = 10 .^ range(-3,stop=-1,length=num_step_sizes)
+stepsizes = 10 .^ range(-3,stop=-1.5,length=num_step_sizes)
 println(stepsizes)
 # Histogram parameters
 xmin = -5
@@ -45,7 +45,7 @@ save_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
 # Run the experiments
 @info "Running: $(exp_name)"
 master_1D_experiment(integrators, num_repeats, potential, diffusion, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=checkpoint, q0=nothing, save_traj=save_traj, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
-#integrator = milstein_method1D
+#integrator = leimkuhler_matthews1D
 #target_uncertainty = 0.001
 #probabilities = compute_1D_probabilities(potential, tau, bin_boundaries)
 #run_1D_experiment_until_given_uncertainty(integrator, num_repeats, potential, diffusion, tau, stepsizes, probabilities, bin_boundaries, save_dir, target_uncertainty; chunk_size=500, checkpoint=checkpoint, q0=nothing, save_traj=save_traj, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)

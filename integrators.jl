@@ -88,16 +88,18 @@ function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, d
     q_traj = zeros(m)
     Rₖ = randn()
 
+    sqrtD = x -> sqrt(D(x))
+
     # number of inner loop steps
     n = 5
 
     # tau = 1 in the following
     # simulate
     for i in 1:m
-        Dq = D(q)
+        sqrtDq = sqrtD(q)
         grad_V = Vprime(q)
         grad_D = Dprime(q)
-        hat_pₖ₊₁ = Rₖ - sqrt(2 * dt) * Dq * grad_V + sqrt(2 * dt) * grad_D
+        hat_pₖ₊₁ = sqrt(tau) * Rₖ - sqrt(2 * dt) * sqrtDq * grad_V + sqrt(dt / 2) * grad_D / sqrtDq
         
         sqrt_h_2 = sqrt(dt / 2)
         inner_step = sqrt_h_2 / n  # Divide by n for each internal RK4 step
@@ -106,10 +108,10 @@ function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, d
         hat_qₖ₊₁ = q # Initialize hat_qₖ₊₁
         for j in 1:n
             # Compute intermediate values
-            k1 = inner_step * D(hat_qₖ₊₁) * hat_pₖ₊₁
-            k2 = inner_step * D(hat_qₖ₊₁ + 0.5 * k1) * hat_pₖ₊₁
-            k3 = inner_step * D(hat_qₖ₊₁ + 0.5 * k2) * hat_pₖ₊₁
-            k4 = inner_step * D(hat_qₖ₊₁ + k3) * hat_pₖ₊₁
+            k1 = inner_step * sqrtD(hat_qₖ₊₁) * hat_pₖ₊₁
+            k2 = inner_step * sqrtD(hat_qₖ₊₁ + 0.5 * k1) * hat_pₖ₊₁
+            k3 = inner_step * sqrtD(hat_qₖ₊₁ + 0.5 * k2) * hat_pₖ₊₁
+            k4 = inner_step * sqrtD(hat_qₖ₊₁ + k3) * hat_pₖ₊₁
             
             # Update state using weighted average of intermediate values
             hat_qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
@@ -120,13 +122,13 @@ function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, d
         Rₖ₊₁ = randn()
         for j in 1:n
             # Compute intermediate values
-            k1 = inner_step * D(qₖ₊₁) * Rₖ₊₁
-            k2 = inner_step * D(qₖ₊₁ + 0.5 * k1) * Rₖ₊₁
-            k3 = inner_step * D(qₖ₊₁ + 0.5 * k2) * Rₖ₊₁
-            k4 = inner_step * D(qₖ₊₁ + k3) * Rₖ₊₁
+            k1 = inner_step * sqrtD(qₖ₊₁) * Rₖ₊₁
+            k2 = inner_step * sqrtD(qₖ₊₁ + 0.5 * k1) * Rₖ₊₁
+            k3 = inner_step * sqrtD(qₖ₊₁ + 0.5 * k2) * Rₖ₊₁
+            k4 = inner_step * sqrtD(qₖ₊₁ + k3) * Rₖ₊₁
             
             # Update state using weighted average of intermediate values
-            qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+            qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4) * sqrt(tau)
         end
         
         # Update the trajectory

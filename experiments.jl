@@ -154,7 +154,7 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
             # Run steps in chunks to avoid memory issues
             while steps_remaining > 0
                 steps_to_run = convert(Int, min(steps_remaining, chunk_size))
-                q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx = run_chunk(integrator, q0, Vprime, D, Dprime, tau, dt, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, time_transform, space_transform, ΣgI, Σg, ΣI, original_D, x_of_y, x, Dx, estimate_diffusion_coefficient, segment_length)
+                q0, hist, chunk_number, ΣgI, Σg, ΣI, x, Dx = run_chunk(integrator, q0, Vprime, D, Dprime, tau, dt, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, time_transform, space_transform, ΣgI, Σg, ΣI, original_D, x_of_y; x=x, Dx=Dx, estimate_diffusion_coefficient=estimate_diffusion_coefficient, segment_length=segment_length)
                 steps_remaining -= steps_to_run
             end
 
