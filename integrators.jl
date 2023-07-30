@@ -430,10 +430,10 @@ function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, 
     # tau = 1 in the following
     # simulate
     for i in 1:m
-        Dq = D(q)
-        grad_V = Vprime(q)
-        div_D = div_D(q)
-        hat_pₖ₊₁ = Rₖ - sqrt(2 * dt) * Dq * grad_V + sqrt(2 * dt) * div_D
+        Dq = D(q[1], q[2])
+        grad_V = Vprime(q[1], q[2])
+        div_Dq = div_D(q[1], q[2])
+        hat_pₖ₊₁ = Rₖ - sqrt(2 * dt) * Dq * grad_V + sqrt(2 * dt) * div_Dq
         
         sqrt_h_2 = sqrt(dt / 2)
         inner_step = sqrt_h_2 / n  # Divide by n for each internal RK4 step
@@ -442,10 +442,10 @@ function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, 
         hat_qₖ₊₁ = q # Initialize hat_qₖ₊₁
         for j in 1:n
             # Compute intermediate values
-            k1 = inner_step * D(hat_qₖ₊₁) * hat_pₖ₊₁
-            k2 = inner_step * D(hat_qₖ₊₁ + 0.5 * k1) * hat_pₖ₊₁
-            k3 = inner_step * D(hat_qₖ₊₁ + 0.5 * k2) * hat_pₖ₊₁
-            k4 = inner_step * D(hat_qₖ₊₁ + k3) * hat_pₖ₊₁
+            k1 = inner_step * D(hat_qₖ₊₁[1], hat_qₖ₊₁[2]) * hat_pₖ₊₁
+            k2 = inner_step * D(hat_qₖ₊₁[1] + 0.5 * k1[1], hat_qₖ₊₁[2] + 0.5 * k1[2]) * hat_pₖ₊₁
+            k3 = inner_step * D(hat_qₖ₊₁[1] + 0.5 * k2[1], hat_qₖ₊₁[2] + 0.5 * k2[2]) * hat_pₖ₊₁
+            k4 = inner_step * D(hat_qₖ₊₁[1] + k3[1], hat_qₖ₊₁[2] + k3[2]) * hat_pₖ₊₁
             
             # Update state using weighted average of intermediate values
             hat_qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
@@ -453,12 +453,13 @@ function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, 
         
         # Perform n steps of RK4 integration for qₖ₊₁
         qₖ₊₁ = hat_qₖ₊₁ # Initialize qₖ₊₁
+        Rₖ₊₁ = randn(2)
         for j in 1:n
             # Compute intermediate values
-            k1 = inner_step * D(qₖ₊₁) * Rₖ₊₁
-            k2 = inner_step * D(qₖ₊₁ + 0.5 * k1) * Rₖ₊₁
-            k3 = inner_step * D(qₖ₊₁ + 0.5 * k2) * Rₖ₊₁
-            k4 = inner_step * D(qₖ₊₁ + k3) * Rₖ₊₁
+            k1 = inner_step * D(qₖ₊₁[1], qₖ₊₁[2]) * Rₖ₊₁
+            k2 = inner_step * D(qₖ₊₁[1] + 0.5 * k1[1], qₖ₊₁[2] + 0.5 * k1[2]) * Rₖ₊₁
+            k3 = inner_step * D(qₖ₊₁[1] + 0.5 * k2[1], qₖ₊₁[2] + 0.5 * k2[2]) * Rₖ₊₁
+            k4 = inner_step * D(qₖ₊₁[1] + k3[1], qₖ₊₁[2] + k3[2]) * Rₖ₊₁
             
             # Update state using weighted average of intermediate values
             qₖ₊₁ += (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
