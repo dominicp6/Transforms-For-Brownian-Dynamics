@@ -26,8 +26,8 @@ potential = softWell1D
 diffusion = Dlinear1D
 
 # Transformations
-time_transform = false
-space_transform = true
+time_transform = true
+space_transform = false
 x_of_y = y -> (y/4) * (abs(y) + 4)
 checkpoint = false
 save_traj = false
@@ -36,21 +36,24 @@ save_traj = false
 bin_boundaries = range(xmin, xmax, length=n_bins+1)
 
 # Untransformed Experiments
-integrators = [naive_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D]
-target_uncertainties = 10 .^ range(-3.1,stop=-3.5,length=5)
+integrators = [euler_maruyama1D]#, naive_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D]
+target_uncertainties = 10 .^ range(-3.4,stop=-3.4,length=1)
 
-num_step_sizes = 7
+num_step_sizes = 6
 
-EM = [10 .^ range(-2.9,stop=-2.4,length=num_step_sizes), 10 .^ range(-3.1,stop=-2.4,length=num_step_sizes), 10 .^ range(-3.1,stop=-2.7,length=num_step_sizes), 10 .^ range(-3.2,stop=-2.9,length=num_step_sizes), 10 .^ range(-3.2,stop=-2.9,length=num_step_sizes)]
+LM = [10 .^ range(-2.0, stop=-1.5, length = 5)]
+EM = [10 .^ range(-2.95, stop=-2.70, length = 7)]#[10 .^ range(-3.1,stop=-2.45,length=num_step_sizes), 10 .^ range(-3.0,stop=-2.65,length=num_step_sizes), 10 .^ range(-3.1,stop=-2.85,length=num_step_sizes), 10 .^ range(-3.2,stop=-2.95,length=num_step_sizes)]
 NLM = [10 .^ range(-1.7,stop=-1.35,length=num_step_sizes), 10 .^ range(-1.75,stop=-1.4,length=num_step_sizes), 10 .^ range(-1.7,stop=-1.5,length=num_step_sizes), 10 .^ range(-1.8,stop=-1.50,length=num_step_sizes), 10 .^ range(-1.9,stop=-1.55,length=num_step_sizes)]
-MM = [10 .^ range(-2.85,stop=-2.45,length=num_step_sizes), 10 .^ range(-2.85,stop=-2.5,length=num_step_sizes), 10 .^ range(-3.0,stop=-2.6,length=num_step_sizes), 10 .^ range(-3.0,stop=-2.75,length=num_step_sizes), 10 .^ range(-3.2,stop=-2.825,length=num_step_sizes)]
-SH = [10 .^ range(-1.8,stop=-1.65,length=num_step_sizes), 10 .^ range(-1.95,stop=-1.7,length=num_step_sizes), 10 .^ range(-1.95,stop=-1.75,length=num_step_sizes), 10 .^ range(-2.0,stop=-1.8,length=num_step_sizes), 10 .^ range(-2.05,stop=-1.85,length=num_step_sizes)]
+MM = [10 .^ range(-2.85,stop=-2.20,length=num_step_sizes)]#, 10 .^ range(-2.85,stop=-2.5,length=num_step_sizes), 10 .^ range(-3.0,stop=-2.6,length=num_step_sizes), 10 .^ range(-3.0,stop=-2.75,length=num_step_sizes), 10 .^ range(-3.2,stop=-2.825,length=num_step_sizes)]
+SH = [10 .^ range(-1.9,stop=-1.65,length=num_step_sizes)]#, 10 .^ range(-1.95,stop=-1.7,length=num_step_sizes), 10 .^ range(-1.95,stop=-1.75,length=num_step_sizes), 10 .^ range(-2.0,stop=-1.8,length=num_step_sizes), 10 .^ range(-2.05,stop=-1.85,length=num_step_sizes)]
 
-stepsizes_list = [NLM, MM, SH]
+# EM = [10 .^ range(-3.1,stop=-2.85,length=num_step_sizes)]
+
+stepsizes_list = [EM]
 
 for (int_idx, integrator) in enumerate(integrators)
     for (unt_idx, target_uncertainty) in enumerate(target_uncertainties)
-        exp_name = "$(string(nameof(integrator)))_ST_$(target_uncertainty)"
+        exp_name = "$(string(nameof(integrator)))_TT2_$(target_uncertainty)"
         @info "Running: $(exp_name)"
         #save_dir = "C:/Users/domph.000/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
         save_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
