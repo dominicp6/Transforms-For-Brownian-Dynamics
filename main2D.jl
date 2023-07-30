@@ -1,13 +1,13 @@
-include("integrators.jl")
-include("potentials.jl")
-include("diffusionTensors.jl")
-include("utils.jl")
-include("experiments2D.jl")
+include("general_utils/integrators.jl")
+include("general_utils/potentials.jl")
+include("general_utils/diffusion_tensors.jl")
+include("general_utils/probability_utils.jl")
+include("experiment_utils/experiments2D.jl")
 using LinearAlgebra
 import .Integrators: euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, stochastic_heun2D, leimkuhler_matthews2D    
 import .Potentials: bowl2D, quadrupleWell2D, moroCardin2D, muller_brown, softQuadrupleWell2D
 import .DiffusionTensors: Dconst2D, Dlinear2D, Dquadratic2D, DmoroCardin, Doseen, DRinvertible
-import .Utils:  compute_2D_probabilities
+import .ProbabilityUtils:  compute_2D_probabilities
 import .Experiments2D: master_2D_experiment
 
 # Name

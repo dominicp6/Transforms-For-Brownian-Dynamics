@@ -1,12 +1,12 @@
-include("integrators.jl")
-include("potentials.jl")
-include("diffusionTensors.jl")
-include("utils.jl")
-include("experiments.jl")
+include("general_utils/integrators.jl")
+include("general_utils/potentials.jl")
+include("general_utils/diffusion_tensors.jl")
+include("general_utils/probability_utils.jl")
+include("experiment_utils/experiments.jl")
 import .Integrators: euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, leimkuhler_matthews1D, leimkuhler_matthews2D  
 import .Potentials: doubleWell1D, LM2013, localWell1D, transformedLocalWell1D, transformedLM2013, transformed2LM2013, softWell1D, transformedSoftWell1D, transformed2SoftWell1D
 import .DiffusionTensors: Dconst1D, Dlinear1D, Dquadratic1D
-import .Utils: compute_1D_probabilities
+import .ProbabilityUtils: compute_1D_probabilities
 import .Experiments: master_1D_experiment, run_1D_experiment_until_given_uncertainty
 
 # Name

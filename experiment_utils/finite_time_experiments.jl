@@ -1,13 +1,17 @@
 module FiniteTimeExperiments
-include("calculus.jl")
-include("potentials.jl")
-include("diffusionTensors.jl")
-include("utils.jl")
-include("dynamics_utils.jl")
+include("../general_utils/calculus.jl")
+include("../general_utils/potentials.jl")
+include("../general_utils/diffusion_tensors.jl")
+include("../general_utils/probability_utils.jl")
+include("../general_utils/plotting_utils.jl")
+include("../general_utils/misc_utils.jl")
+include("../general_utils/dynamics_utils.jl")
 include("experiments.jl")
 using FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, Plots
 import .Calculus: differentiate1D
-import .Utils: compute_1D_mean_L1_error, compute_1D_probabilities, save_and_plot, init_q0
+import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_probabilities
+import .PlottingUtils: save_and_plot
+import .MiscUtils: init_q0
 import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
 import .DiffusionTensors: Dconst1D
 import .Experiments: run_chunk
@@ -25,55 +29,69 @@ function compute_histogram_errors(histograms, reference_histograms)
     return errors
 end
 
-function plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, save_dir, title="error")
+function plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, save_dir, plot_type="untransformed")
     # Plot the error data
     for (integrator_idx, integrator) in enumerate(integrators)
         for (stepsize_idx, stepsize) in enumerate(stepsizes)
-            plot_title = "$(string(nameof(integrator))),$(round(stepsize,digits=3)),$(title)"
+            plot_title = "$(string(nameof(integrator))),$(round(stepsize,digits=3)),$(plot_type)"
             plot(time_snapshots, error[integrator_idx, stepsize_idx, :], xlabel="Time", ylabel="Error", title=plot_title)
-            savefig("$(save_dir)/$(plot_title).png")
+            savefig("$(save_dir)/figures/h=$(round(stepsize,digits=3))/$(plot_type)/$(plot_title).png")
         end
     end
 
 end
 
 function create_experiment_folders(save_dir, integrators, reference_intgrator, reference_stepsize, time_transform::Bool, space_transform::Bool,  stepsizes, num_repeats, V, D, tau, x_bins, chunk_size, ΔT, T)
+    function create_directory_if_not_exists(dir_path)
+        if !isdir(dir_path)
+            mkpath(dir_path)
+            @info "Created directory $dir_path"
+        end
+    end
+    
     # Create master directory
-    if !isdir(save_dir)
-        mkdir(save_dir)
-        @info "Created directory $(save_dir)"
-    end
-
-    # Create directory for reference simulation
-    if !isdir("$(save_dir)/reference")
-        mkdir("$(save_dir)/reference")
-        @info "Created directory $(save_dir)/reference"
-    end
-
-    # Create directory for each integrator
+    create_directory_if_not_exists(save_dir)
+    
+    # Create subdirectories for histograms
+    create_directory_if_not_exists("$(save_dir)/histograms/reference")
+    
     for integrator in integrators
-        if !isdir("$(save_dir)/$(string(nameof(integrator)))")
-            mkdir("$(save_dir)/$(string(nameof(integrator)))")
-            @info "Created directory $(save_dir)/$(string(nameof(integrator)))/untransformed"
+        create_directory_if_not_exists("$(save_dir)/histograms/$(nameof(integrator))/untransformed")
+        if time_transform
+            create_directory_if_not_exists("$(save_dir)/histograms/$(nameof(integrator))/time_transformed")
+        end
+        if space_transform
+            create_directory_if_not_exists("$(save_dir)/histograms/$(nameof(integrator))/space_transformed")
         end
     end
-
-    # If time-transformed, create appropriate subdirectories
-    if time_transform
-        for integrator in integrators
-            if !isdir("$(save_dir)/$(string(nameof(integrator)))/time_transformed")
-                mkdir("$(save_dir)/$(string(nameof(integrator)))/time_transformed")
-                @info "Created directory $(save_dir)/$(string(nameof(integrator)))/time_transformed"
-            end
+    
+    # Create subdirectories for figures
+    for stepsize in stepsizes
+        create_directory_if_not_exists("$(save_dir)/figures/h=$(round(stepsize,digits=3))/untransformed")
+        if time_transform
+            create_directory_if_not_exists("$(save_dir)/figures/h=$(round(stepsize,digits=3))/time_transformed")
+        end
+        if space_transform
+            create_directory_if_not_exists("$(save_dir)/figures/h=$(round(stepsize,digits=3))/space_transformed")
         end
     end
+    
+    # Create directory for results
+    create_directory_if_not_exists("$(save_dir)/results")    
 
     # If space-transformed, create appropriate subdirectories
     if space_transform
         for integrator in integrators
-            if !isdir("$(save_dir)/$(string(nameof(integrator)))/space_transformed")
-                mkdir("$(save_dir)/$(string(nameof(integrator)))/space_transformed")
-                @info "Created directory $(save_dir)/$(string(nameof(integrator)))/space_transformed"
+            if !isdir("$(save_dir)/histograms/$(string(nameof(integrator)))/space_transformed")
+                mkdir("$(save_dir)/histograms/$(string(nameof(integrator)))/space_transformed")
+                @info "Created directory $(save_dir)/histograms/$(string(nameof(integrator)))/space_transformed"
+            end
+        end
+
+        for stepsize in stepsizes
+            if !isdir("$(save_dir)/figures/h=$(round(stepsize,digits=3))/space_transformed")
+                mkdir("$(save_dir)/figures/h=$(round(stepsize,digits=3))/space_transformed")
+                @info "Created directory $(save_dir)/figures/h=$(round(stepsize,digits=3))/space_transformed"
             end
         end
     end
@@ -171,9 +189,9 @@ function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, ta
 
     # Save the histograms
     if reference_simulation
-        save("$(save_dir)/reference/histograms.jld2", "data", histograms)
+        save("$(save_dir)/histograms/reference/histograms.jld2", "data", histograms)
     else
-        save("$(save_dir)/$(string(nameof(integrator)))/untransformed/histograms.jld2", "data", histograms)
+        save("$(save_dir)/histograms/$(string(nameof(integrator)))/untransformed/histograms.jld2", "data", histograms)
     end
 
     return histograms
@@ -294,7 +312,7 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
     # end
 
     # Save the histograms
-    save("$(save_dir)/$(string(nameof(integrator)))/time_transformed/histograms.jld2", "data", histograms)
+    save("$(save_dir)/histograms/$(string(nameof(integrator)))/time_transformed/histograms.jld2", "data", histograms)
 
     return histograms
 end
@@ -365,7 +383,7 @@ function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, 
     end
 
     # Save the histograms
-    save("$(save_dir)/$(string(nameof(integrator)))/space_transformed/histograms.jld2", "data", histograms)
+    save("$(save_dir)/histograms/$(string(nameof(integrator)))/space_transformed/histograms.jld2", "data", histograms)
 
     return histograms
 end
@@ -417,21 +435,21 @@ function run_1D_finite_time_convergence_experiment(integrators, reference_integr
     end
 
     # Save the error data to file
-    save("$(save_dir)/error.jld2", "data", error)
+    save("$(save_dir)/results/error.jld2", "data", error)
     if time_transform
-        save("$(save_dir)/error_TT.jld2", "data", error_TT)
+        save("$(save_dir)/results/error_TT.jld2", "data", error_TT)
     end
     if space_transform
-        save("$(save_dir)/error_ST.jld2", "data", error_ST)
+        save("$(save_dir)/results/error_ST.jld2", "data", error_ST)
     end
 
     # Plot the error data
-    plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, save_dir, "error")
+    plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, save_dir, "untransformed")
     if time_transform
-        plot_finite_time_errors(error_TT, integrators, stepsizes, time_snapshots, save_dir, "error_TT")
+        plot_finite_time_errors(error_TT, integrators, stepsizes, time_snapshots, save_dir, "time_transformed")
     end
     if space_transform
-        plot_finite_time_errors(error_ST, integrators, stepsizes, time_snapshots, save_dir, "error_ST")
+        plot_finite_time_errors(error_ST, integrators, stepsizes, time_snapshots, save_dir, "space_transformed")
     end
 
 end

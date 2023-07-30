@@ -1,13 +1,17 @@
 module Experiments
-include("calculus.jl")
-include("potentials.jl")
-include("diffusionTensors.jl")
-include("utils.jl")
-include("transform_utils.jl")
-include("dynamics_utils.jl")
+include("../general_utils/calculus.jl")
+include("../general_utils/potentials.jl")
+include("../general_utils/diffusion_tensors.jl")
+include("../general_utils/probability_utils.jl")
+include("../general_utils/plotting_utils.jl")
+include("../general_utils/misc_utils.jl")
+include("../general_utils/transform_utils.jl")
+include("../general_utils/dynamics_utils.jl")
 using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs
 import .Calculus: differentiate1D
-import .Utils: compute_1D_mean_L1_error, compute_1D_probabilities, save_and_plot, init_q0
+import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_probabilities 
+import .PlottingUtils: save_and_plot 
+import .MiscUtils: init_q0
 import .TransformUtils: increment_g_counts, increment_I_counts
 import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
 import .DiffusionTensors: Dconst1D

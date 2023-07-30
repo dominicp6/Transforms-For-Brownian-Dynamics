@@ -1,13 +1,17 @@
 module Experiments2D
-include("calculus.jl")
-include("potentials.jl")
-include("utils.jl")
-include("transform_utils.jl")
-include("diffusionTensors.jl")
-include("integrators.jl")
+include("../general_utils/calculus.jl")
+include("../general_utils/potentials.jl")
+include("../general_utils/probability_utils.jl")
+include("../general_utils/plotting_utils.jl")
+include("../general_utils/misc_utils.jl")
+include("../general_utils/transform_utils.jl")
+include("../general_utils/diffusion_tensors.jl")
+include("../general_utils/integrators.jl")
 using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs, LinearAlgebra
 import .Calculus: differentiate2D, symbolic_matrix_divergence2D
-import .Utils: compute_2D_mean_L1_error, compute_2D_probabilities, save_and_plot, init_q0, plot_histograms, assert_isotropic_diagonal_diffusion
+import .ProbabilityUtils: compute_2D_mean_L1_error, compute_2D_probabilities
+import .PlottingUtils: save_and_plot, plot_histograms
+import .MiscUtils: init_q0, assert_isotropic_diagonal_diffusion
 import .DiffusionTensors: Dconst2D
 import .TransformUtils: increment_g_counts2D
 import .Integrators: euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD, stochastic_heun2D_identityD
