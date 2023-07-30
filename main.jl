@@ -10,7 +10,7 @@ import .Utils: compute_1D_probabilities
 import .Experiments: master_1D_experiment, run_1D_experiment_until_given_uncertainty
 
 # Name
-exp_name = "baoab_limit_method_corrected_75M"
+exp_name = "baoab_limit_method_75M_new"
 
 # Integrator Params
 T = 75000000
@@ -20,7 +20,7 @@ tau = 1
 num_repeats = 12
 num_step_sizes = 10
 integrators = [leimkuhler_matthews1D]
-stepsizes = 10 .^ range(-3,stop=-1.5,length=num_step_sizes)
+stepsizes = 10 .^ range(-3,stop=-1,length=num_step_sizes)
 println(stepsizes)
 # Histogram parameters
 xmin = -5
