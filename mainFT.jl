@@ -10,7 +10,7 @@ import .Utils: compute_1D_probabilities
 import .FiniteTimeExperiments: run_1D_finite_time_convergence_experiment
 
 # Name
-exp_name = "finite_time_100M"
+exp_name = "finite_time_10M"
 
 # Integrator Params
 T = 4.096     # 0.5
@@ -18,7 +18,7 @@ T = 4.096     # 0.5
 tau = 1
 
 # Experiment Params
-num_repeats = 100000000
+num_repeats = 10000000
 integrators = [euler_maruyama1D, naive_leimkuhler_matthews1D, leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, hummer_leimkuhler_matthews1D]
 reference_integrator = stochastic_heun1D
 reference_stepsize = 0.0001
