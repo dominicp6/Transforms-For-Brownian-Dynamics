@@ -4,6 +4,7 @@ include("../general_utils/potentials.jl")
 include("../general_utils/diffusion_tensors.jl")
 include("../general_utils/probability_utils.jl")
 include("../general_utils/plotting_utils.jl")
+include("../general_utils/transform_utils.jl")
 include("../general_utils/misc_utils.jl")
 include("../general_utils/dynamics_utils.jl")
 include("experiments.jl")
@@ -11,12 +12,23 @@ using FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, 
 import .Calculus: differentiate1D
 import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_probabilities
 import .PlottingUtils: save_and_plot
-import .MiscUtils: init_q0
+import .TransformUtils: increment_I_counts
+import .MiscUtils: init_q0, create_directory_if_not_exists
 import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
 import .DiffusionTensors: Dconst1D
 import .Experiments: run_chunk
 export run_1D_finite_time_convergence_experiment
 
+"""
+Compute the mean L1 error between a set of histograms and their corresponding reference histograms.
+
+## Arguments
+- `histograms`: An array of `Hist1D` objects representing the histograms to be compared with the reference histograms.
+- `reference_histograms`: An array of `Hist1D` objects representing the reference histograms.
+
+## Returns
+- An array of floating-point values representing the mean L1 errors for each time snapshot.
+"""
 function compute_histogram_errors(histograms, reference_histograms)
     # Apply compute_1D_mean_L1_error for each corresponding pair of histograms
     errors = zeros(length(histograms))
@@ -29,6 +41,17 @@ function compute_histogram_errors(histograms, reference_histograms)
     return errors
 end
 
+"""
+Plot finite-time errors for different integrators and stepsizes.
+
+## Arguments
+- `error`: A 3-dimensional array containing the error data for different integrators and stepsizes. The shape should be (num_integrators, num_stepsizes, num_snapshots), where num_integrators is the number of integrators, num_stepsizes is the number of stepsizes, and num_snapshots is the number of time snapshots.
+- `integrators`: An array of integrator names.
+- `stepsizes`: An array of stepsizes used in the simulation.
+- `time_snapshots`: An array of time snapshots for which errors are computed.
+- `save_dir`: The directory where the generated plots will be saved.
+- `plot_type`: Optional. The type of plot to generate, defaults to "untransformed".
+"""
 function plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, save_dir, plot_type="untransformed")
     # Plot the error data
     for (integrator_idx, integrator) in enumerate(integrators)
@@ -41,14 +64,28 @@ function plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, 
 
 end
 
-function create_experiment_folders(save_dir, integrators, reference_intgrator, reference_stepsize, time_transform::Bool, space_transform::Bool,  stepsizes, num_repeats, V, D, tau, x_bins, chunk_size, ΔT, T)
-    function create_directory_if_not_exists(dir_path)
-        if !isdir(dir_path)
-            mkpath(dir_path)
-            @info "Created directory $dir_path"
-        end
-    end
-    
+"""
+Create necessary directories and save experiment parameters for the finite-time simulation experiment.
+
+    ## Arguments
+    - `save_dir`: The path to the directory where experiment data will be saved.
+    - `integrators`: An array of integrator names for the simulation.
+    - `reference_intgrator`: The name of the reference integrator.
+    - `reference_stepsize`: The stepsize used for the reference integrator.
+    - `untransformed`: A boolean indicating whether to create directories for untransformed histograms and figures.
+    - `time_transform`: A boolean indicating whether to create directories for time-transformed histograms and figures.
+    - `space_transform`: A boolean indicating whether to create directories for space-transformed histograms and figures.
+    - `stepsizes`: An array of stepsizes to be used in the simulation.
+    - `num_repeats`: The number of times to repeat the simulation.
+    - `V`: The potential function used in the simulation.
+    - `D`: The diffusion coefficient function used in the simulation.
+    - `tau`: The noise strength parameter for the simulation.
+    - `x_bins`: The bin boundaries for the histograms.
+    - `chunk_size`: The number of repeats to run in each computational chunk.
+    - `ΔT`: The time interval for saving the distribution in the simulation.
+    - `T`: The total simulation time.
+"""
+function create_experiment_folders(save_dir, integrators, reference_intgrator, reference_stepsize, untransformed::Bool, time_transform::Bool, space_transform::Bool,  stepsizes, num_repeats, V, D, tau, x_bins, chunk_size, ΔT, T)
     # Create master directory
     create_directory_if_not_exists(save_dir)
     
@@ -56,7 +93,9 @@ function create_experiment_folders(save_dir, integrators, reference_intgrator, r
     create_directory_if_not_exists("$(save_dir)/histograms/reference")
     
     for integrator in integrators
-        create_directory_if_not_exists("$(save_dir)/histograms/$(nameof(integrator))/untransformed")
+        if untransformed
+            create_directory_if_not_exists("$(save_dir)/histograms/$(nameof(integrator))/untransformed")
+        end
         if time_transform
             create_directory_if_not_exists("$(save_dir)/histograms/$(nameof(integrator))/time_transformed")
         end
@@ -67,7 +106,9 @@ function create_experiment_folders(save_dir, integrators, reference_intgrator, r
     
     # Create subdirectories for figures
     for stepsize in stepsizes
-        create_directory_if_not_exists("$(save_dir)/figures/h=$(round(stepsize,digits=3))/untransformed")
+        if untransformed
+            create_directory_if_not_exists("$(save_dir)/figures/h=$(round(stepsize,digits=3))/untransformed")
+        end
         if time_transform
             create_directory_if_not_exists("$(save_dir)/figures/h=$(round(stepsize,digits=3))/time_transformed")
         end
@@ -78,23 +119,6 @@ function create_experiment_folders(save_dir, integrators, reference_intgrator, r
     
     # Create directory for results
     create_directory_if_not_exists("$(save_dir)/results")    
-
-    # If space-transformed, create appropriate subdirectories
-    if space_transform
-        for integrator in integrators
-            if !isdir("$(save_dir)/histograms/$(string(nameof(integrator)))/space_transformed")
-                mkdir("$(save_dir)/histograms/$(string(nameof(integrator)))/space_transformed")
-                @info "Created directory $(save_dir)/histograms/$(string(nameof(integrator)))/space_transformed"
-            end
-        end
-
-        for stepsize in stepsizes
-            if !isdir("$(save_dir)/figures/h=$(round(stepsize,digits=3))/space_transformed")
-                mkdir("$(save_dir)/figures/h=$(round(stepsize,digits=3))/space_transformed")
-                @info "Created directory $(save_dir)/figures/h=$(round(stepsize,digits=3))/space_transformed"
-            end
-        end
-    end
 
     if !isfile("$(save_dir)/experiment_params.json")
         # Save experiment parameters to file
@@ -118,10 +142,9 @@ function create_experiment_folders(save_dir, integrators, reference_intgrator, r
     end
 end
 
-function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, save_traj=false, mu0=nothing, sigma0=nothing, reference_simulation=false)
-    # ΔT is the time between saving distribution snapshots
-
-    # Set mean and variance of ρ₀ distribution if not specified 
+function run_1D_finite_time_experiment_untransformed(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, mu0=nothing, sigma0=nothing, reference_simulation=false)
+    
+    # Set the mean and the variance of the ρ₀ distribution (distribution of starting configurations) if not specified 
     if (mu0 === nothing)
         mu0 = 0
     end
@@ -130,62 +153,64 @@ function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, ta
         sigma0 = 1
     end
 
-    # Compute Vprime and Dprime
+    # Compute the symbolic derivatives of the potential and diffusion coefficients
     Vprime = differentiate1D(V)
     Dprime = differentiate1D(D)
 
-    # Run the experiment
-    @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
-
-    # Initialise q0 final values
+    # Compute the number of time snapshots to save
     number_of_snapshots = Int(floor(T / ΔT))
 
-    repeats_remaining = num_repeats
+    # Initialise an empty histogram for each time snapshot (to store the finite-time distributions)
     histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
+    
+    # While there are still trajectories to run
+    repeats_remaining = num_repeats
     while repeats_remaining > 0
-        repeats_to_run = convert(Int, min(num_repeats, chunk_size))
-        q0_finals = zeros(number_of_snapshots, repeats_to_run)
 
-        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)
-            hist = Hist1D([], bin_boundaries)                     # histogram of the trajectory
+        # Compute the number of repeats to run in this computational chunk
+        repeats_to_run = convert(Int, min(num_repeats, chunk_size))
+
+        # Initialise an array to store the positions of the trajectories at each time snapshot
+        snapshots = zeros(number_of_snapshots, repeats_to_run)
+
+        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)   
+            
+            # Initialise the starting position
             q0 = mu0 + sigma0 * randn()
+
+            # Set the initial value of Rₖ to nothing
+            previous_Rₖ = nothing
 
             # Simulate until T, saving the distribution every ΔT
             for snapshot_number in 1:number_of_snapshots
-                steps_remaining = floor(ΔT / stepsize)            # total number of steps
-                chunk_number = 0                                  # number of chunks run so far
 
-                while steps_remaining > 0
-                    steps_to_run = convert(Int, min(steps_remaining, chunk_size))
-                    q0, hist, chunk_number, _, _, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, false, false, nothing, nothing, nothing, nothing, nothing)
-                    steps_remaining -= steps_to_run
-                end
+                # Compute the number of steps to run in this snapshot interval 
+                steps_to_run = floor(Int, ΔT / stepsize)     
 
-                # Save the q0 final values
-                q0_finals[snapshot_number, repeat] = q0
+                # Run the chunk of steps
+                q_chunk, Rₖ = integrator(q0, Vprime, D, Dprime, tau, steps_to_run, stepsize, previous_Rₖ)
+
+                # Save the final position
+                q0 = copy(q_chunk[end])
+
+                # Update the previous value of Rₖ
+                previous_Rₖ = Rₖ
+
+                # Save the final snapshop position
+                snapshots[snapshot_number, repeat] = q0
             end
         end
 
         repeats_remaining -= repeats_to_run
 
-        # Construct new histograms
-        new_histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+        # Construct histogram increments for each snapshot from the latest chunk of trajectories
+        histogram_increments = [Hist1D(snapshots[i, :], bin_boundaries) for i in 1:number_of_snapshots]
 
-        # Add new histograms to existing histograms
+        # Update the histograms
         for i in eachindex(histograms)
-            histograms[i] += new_histograms[i]
+            histograms[i] += histogram_increments[i]
         end
     end
-
-    # Plot the histograms
-    # for (i, hist) in enumerate(histograms)
-    #     plot_title = "$(string(nameof(integrator))),$(round(stepsize,digits=3)),$(i)"
-    #     println("bincenters(hist) = $(bincenters(hist))")
-    #     println("bincounts(hist) = $(bincounts(hist))")
-    #     display(plot(bincenters(hist), bincounts(hist), xlabel="x", ylabel="y", title=plot_title))
-    #     println("Press any key to continue:")
-    #     readline()
-    # end
 
     # Save the histograms
     if reference_simulation
@@ -198,9 +223,8 @@ function run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, ta
 end
 
 function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing)
-    # ΔT is the time between saving distribution snapshots
-
-    # Set mean and variance of ρ₀ distribution if not specified 
+        
+    # Set the mean and the variance of the ρ₀ distribution (distribution of starting configurations) if not specified 
     if (mu0 === nothing)
         mu0 = 0
     end
@@ -208,119 +232,93 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
     if (sigma0 === nothing)
         sigma0 = 1
     end
-    
-    # Transform the potential so that the diffusion is constant
+
+    # Define the transformed potential and diffusion coefficients
     V = x -> original_V(x) - tau * log(original_D(x))
     D = Dconst1D
 
-    # Compute Vprime and Dprime
+    # Compute the symbolic derivatives of the potential and diffusion coefficients
     Vprime = differentiate1D(V)
     Dprime = differentiate1D(D)
 
-    # Run a single chunk to estimate the time rescaling factor
-    q0 = mu0 + sigma0 * randn()
-    ΣgI = zeros(length(bin_boundaries)-1)            
-    Σg = 0.0
-    hist = Hist1D([], bin_boundaries) 
-    chunk_number = 0
-    steps_to_run = 1000
-    repeat = 0
-    q0, hist, chunk_number, ΣgI, Σg, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
-    TRS = Σg / steps_to_run
-
-    # Run the experiment
-    @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
-
-    # Initialise q0 final values
+    # Compute the number of time snapshots to save
     number_of_snapshots = Int(floor(T / ΔT))
-    repeats_remaining = num_repeats
+
+    # Initialise an empty histogram for each time snapshot (to store the finite-time distributions)
     histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
+    
+    # While there are still trajectories to run
+    repeats_remaining = num_repeats
     while repeats_remaining > 0
+
+        # Compute the number of repeats to run in this computational chunk
         repeats_to_run = convert(Int, min(num_repeats, chunk_size))
-        q0_finals = zeros(number_of_snapshots, repeats_to_run)
 
-        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)
-            hist = Hist1D([], bin_boundaries)            # histogram of the trajectory   
+        # Initialise an array to store the positions of the trajectories at each time snapshot
+        snapshots = zeros(number_of_snapshots, repeats_to_run)
 
+        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)   
+            
+            # Initialise the starting position
             q0 = mu0 + sigma0 * randn()
+
+            # Set the initial value of Rₖ to nothing
+            previous_Rₖ = nothing
 
             # Simulate until T, saving the distribution every ΔT
             for snapshot_number in 1:number_of_snapshots
-                time_remaining = ΔT                      # total time remaining for this snapshot
-                chunk_number = 0                         # number of chunks run so far
-                
-                # For time-transformed integrators
-                ΣgI = zeros(length(bin_boundaries)-1)            
-                Σg = 0.0
-                previous_Σg = Σg
-                previous_q0 = q0
 
-                while time_remaining > 0
-                    previous_Σg = Σg
-                    previous_q0 = q0
-                    # Run 80% of the estimated steps remaining, plus one extra to allow for overshoot
-                    estimated_steps_remaining = Int(floor(0.5 * time_remaining / (stepsize * TRS)) + 1)
-                    steps_to_run = convert(Int, min(estimated_steps_remaining, chunk_size))
-                    q0, hist, chunk_number, ΣgI, Σg, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
-                    delta_t = (Σg - previous_Σg) * stepsize
-                    time_remaining -= delta_t
-                end
+                time_remaining_in_snapshot = ΔT
 
-                # Run steps individually until overshoot 
-                steps_to_run = 1              
-                Σg = previous_Σg
-                q0 = previous_q0
-                time_remaining += delta_t
-                delta_t = 0.0
-                while time_remaining > 0
-                    previous_Σg = Σg
-                    previous_q0 = q0
-                    q0, hist, chunk_number, ΣgI, Σg, _, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
-                    delta_t = (Σg - previous_Σg) * stepsize
-                    time_remaining -= delta_t
-                end
+                while time_remaining_in_snapshot > 0
+                    # Compute time rescaling factor (approximation - evaluate this at the initial position)
+                    g = 1/original_D(q0)
+                    
+                    # Run one step of the integrator 
+                    q1, Rₖ = integrator(q0, Vprime, D, Dprime, tau, 1, stepsize, previous_Rₖ)
 
-                # Once the time is overshot, run a partial step to reach the correct time
-                partial_stepsize = stepsize * (1 + time_remaining / delta_t)
-                q0, _, _, _, _, _, _, _ = run_chunk(integrator, previous_q0, Vprime, D, Dprime, tau, partial_stepsize, 1, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, true, false, ΣgI, Σg, nothing, original_D, nothing)
+                    # t time elapsed in this step
+                    delta_t = g * stepsize
 
-                # Save the q0 final values
-                q0_finals[snapshot_number, repeat] = q0
+                    # Update the time remaining in this snapshot
+                    time_remaining_in_snapshot -= delta_t
+
+                    if time_remaining_in_snapshot > 0
+                        # Update the previous value of Rₖ
+                        previous_Rₖ = Rₖ
+
+                        # Update the current position
+                        q0 = q1[1]
+                    else
+                        # Perform a linear interpolation to find the position at the end of the snapshot (approximation)
+                        q0 = q0 + (q1[1] - q0) * (time_remaining_in_snapshot + delta_t) / delta_t
+                    end
+                end 
+    
+                # Save the final snapshop position
+                snapshots[snapshot_number, repeat] = q0
             end
         end
 
         repeats_remaining -= repeats_to_run
 
-        # Construct new histograms
-        new_histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+        # Construct histogram increments for each snapshot from the latest chunk of trajectories
+        histogram_increments = [Hist1D(snapshots[i, :], bin_boundaries) for i in 1:number_of_snapshots]
 
-        # Add new histograms to existing histograms
+        # Update the histograms
         for i in eachindex(histograms)
-            histograms[i] += new_histograms[i]
+            histograms[i] += histogram_increments[i]
         end
-
     end
 
-    # # Plot the histograms
-    # for (i, hist) in enumerate(histograms)
-    #     plot_title = "$(string(nameof(integrator))),$(round(stepsize,digits=3)),$(i)"
-    #     println("bincenters(hist) = $(bincenters(hist))")
-    #     println("bincounts(hist) = $(bincounts(hist))")
-    #     display(plot(bincenters(hist), bincounts(hist), xlabel="x", ylabel="y", title=plot_title))
-    #     println("Press any key to continue:")
-    #     readline()
-    # end
-
-    # Save the histograms
     save("$(save_dir)/histograms/$(string(nameof(integrator)))/time_transformed/histograms.jld2", "data", histograms)
 
     return histograms
 end
 
 function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing, x_of_y=nothing)
-    # ΔT is the time between saving distribution snapshots
 
-    # Set mean and variance of ρ₀ distribution if not specified 
+    # Set the mean and the variance of the ρ₀ distribution (distribution of starting configurations) if not specified 
     if (mu0 === nothing)
         mu0 = 0
     end
@@ -334,52 +332,63 @@ function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, 
     V = y -> original_V(x_of_y(y)) - 0.5 * tau * log(original_D(x_of_y(y)))
     D = Dconst1D
 
-    # Compute Vprime and Dprime
+    # Compute the symbolic derivatives of the potential and diffusion coefficients
     Vprime = differentiate1D(V)
-    Dprime = differentiate1D(D)
+    Dprime = differentiate1D(D)  # Dprime is zero
 
-    # Run the experiment
-    @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
-
-    # Initialise q0 final values
+    # Compute the number of time snapshots to save
     number_of_snapshots = Int(floor(T / ΔT))
-    repeats_remaining = num_repeats
-    histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
-    while repeats_remaining > 0
-        repeats_to_run = convert(Int, min(num_repeats, chunk_size))
-        q0_finals = zeros(number_of_snapshots, repeats_to_run)
 
-        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)
-            hist = Hist1D([], bin_boundaries)                     # histogram of the trajectory
+    # Initialise an empty histogram for each time snapshot (to store the finite-time distributions)
+    histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
+    
+    # While there are still trajectories to run
+    repeats_remaining = num_repeats
+    while repeats_remaining > 0
+
+        # Compute the number of repeats to run in this computational chunk
+        repeats_to_run = convert(Int, min(num_repeats, chunk_size))
+
+        # Initialise an array to store the positions of the trajectories at each time snapshot
+        snapshots = zeros(number_of_snapshots, repeats_to_run)
+
+        Threads.@threads for repeat in ProgressBar(1:repeats_to_run)   
+            
+            # Initialise the starting position
             q0 = mu0 + sigma0 * randn()
+
+            # Set the initial value of Rₖ to nothing
+            previous_Rₖ = nothing
 
             # Simulate until T, saving the distribution every ΔT
             for snapshot_number in 1:number_of_snapshots
-                steps_remaining = floor(ΔT / stepsize)            # total number of steps
-                chunk_number = 0                                  # number of chunks run so far
-                ΣI = zeros(length(bin_boundaries)-1)           
 
-                while steps_remaining > 0
-                    steps_to_run = convert(Int, min(steps_remaining, chunk_size))
-                    q0, hist, chunk_number, _, _, ΣI, _, _ = run_chunk(integrator, q0, Vprime, D, Dprime, tau, stepsize, steps_to_run, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, false, true, nothing, nothing, ΣI, nothing, x_of_y)
-                    steps_remaining -= steps_to_run
-                end
+                # Compute the number of steps to run in this snapshot interval 
+                steps_to_run = floor(Int, ΔT / stepsize)     
 
-                # Save the q0 final values, transformed back to the original space
-                q0_finals[snapshot_number, repeat] = x_of_y(q0)
+                # Run the chunk of steps
+                q_chunk, Rₖ = integrator(q0, Vprime, D, Dprime, tau, steps_to_run, stepsize, previous_Rₖ)
+
+                # Save the final position
+                q0 = copy(q_chunk[end])
+
+                # Update the previous value of Rₖ
+                previous_Rₖ = Rₖ
+
+                # Save the final snapshop position, transformed back to the original space
+                snapshots[snapshot_number, repeat] = x_of_y(q0)
             end
         end
 
         repeats_remaining -= repeats_to_run
 
-        # Construct new histograms
-        new_histograms = [Hist1D(q0_finals[i, :], bin_boundaries) for i in 1:number_of_snapshots]
+        # Construct histogram increments for each snapshot from the latest chunk of trajectories
+        histogram_increments = [Hist1D(snapshots[i, :], bin_boundaries) for i in 1:number_of_snapshots]
 
-        # Add new histograms to existing histograms
+        # Update the histograms
         for i in eachindex(histograms)
-            histograms[i] += new_histograms[i]
+            histograms[i] += histogram_increments[i]
         end
-
     end
 
     # Save the histograms
@@ -388,68 +397,127 @@ function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, 
     return histograms
 end
 
-function run_1D_finite_time_convergence_experiment(integrators, reference_integrator, reference_stepsize, num_repeats, V, D, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=1000, save_traj=false, mu0=nothing, sigma0=nothing, time_transform=false, space_transform=false, x_of_y=nothing)
-    # ΔT is the time between saving distribution snapshots
-    create_experiment_folders(save_dir, integrators, reference_integrator, reference_stepsize, time_transform, space_transform, stepsizes, num_repeats, V, D, tau, bin_boundaries, chunk_size, ΔT, T)
-    number_of_snapshots = Int(floor(T / ΔT))
-    time_snapshots = range(0, T, length=number_of_snapshots+1)[2:end]
+"""
+Run a 1D finite-time convergence experiment for different integrators and stepsizes.
 
-    # First run a high accuracy simulation with a small stepsize using the reference integrator
-    reference_histograms = run_1D_finite_time_experiment(reference_integrator, num_repeats, V, D, ΔT, T, tau, reference_stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, save_traj=save_traj, mu0=mu0, sigma0=sigma0)
+## Arguments
+- `integrators`: An array of integrator names to be used in the untransformed experiments.
+- `integrators_transformed`: An array of integrator names to be used in the transformed (space or time) experiments.
+- `reference_integrator`: The name of the reference integrator.
+- `reference_stepsize`: The stepsize used for the reference integrator.
+- `num_repeats`: The number of times to repeat the simulation.
+- `V`: The potential function used in the simulation.
+- `D`: The diffusion coefficient function used in the simulation.
+- `ΔT`: The time interval for saving the distribution in the simulation.
+- `T`: The total simulation time.
+- `tau`: The noise strength parameter for the simulation.
+- `stepsizes`: An array of stepsizes to be used in the simulation.
+- `bin_boundaries`: An array specifying the bin boundaries for histograms.
+- `save_dir`: The path to the directory where experiment data and results will be saved.
+- `chunk_size`: Optional. The number of repeats to run in each computational chunk, defaults to 1000.
+- `mu0`: Optional. The mean of the starting position distribution, defaults to nothing.
+- `sigma0`: Optional. The standard deviation of the starting position distribution, defaults to nothing.
+- `untransformed`: Optional. A boolean indicating whether to run and analyze the untransformed simulation, defaults to true.
+- `time_transform`: Optional. A boolean indicating whether to run and analyze the time-transformed simulation, defaults to false.
+- `space_transform`: Optional. A boolean indicating whether to run and analyze the space-transformed simulation, defaults to false.
+- `x_of_y`: Optional. A function representing the inverse transformation y = f(x) for space transformation, defaults to nothing.
+
+## Description
+The `run_1D_finite_time_convergence_experiment` function performs a 1D finite-time convergence experiment for different integrators and stepsizes. The experiment involves running the simulations and computing finite-time errors compared to a reference integrator. It also saves the results and generates plots for analysis.
+
+The function accepts various optional parameters to control the experiment, such as starting position distribution (`mu0` and `sigma0`), transformations (`untransformed`, `time_transform`, and `space_transform`), and the inverse transformation function (`x_of_y`).
+
+The experiment results are saved as JLD2 files, and plots are generated and saved based on the transformation options.
+"""
+function run_1D_finite_time_convergence_experiment(integrators, integrators_transformed, reference_integrator, reference_stepsize, num_repeats, V, D, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=1000, mu0=nothing, sigma0=nothing, untransformed=true, time_transform=false, space_transform=false, x_of_y=nothing)
+
+    @assert untransformed || time_transform || space_transform "At least one of untransformed, time_transform or space_transform must be set to true"
+
+    # Create the experiment folders, if they don't already exist
+    create_experiment_folders(save_dir, integrators, reference_integrator, reference_stepsize, untransformed, time_transform, space_transform, stepsizes, num_repeats, V, D, tau, bin_boundaries, chunk_size, ΔT, T)
+    
+    number_of_snapshots = Int(floor(T / ΔT))
+    time_snapshots = ΔT:ΔT:T
+
+    # Run a high accuracy simulation with a small stepsize 
+    @info "Running reference simulation, $(string(nameof(reference_integrator))) with stepsize $(reference_stepsize) for $(T) seconds"
+    reference_histograms = run_1D_finite_time_experiment_untransformed(reference_integrator, num_repeats, V, D, ΔT, T, tau, reference_stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, mu0=mu0, sigma0=sigma0, reference_simulation=true)
 
     # Initialise error arrays
-    error = zeros(length(integrators), length(stepsizes), length(time_snapshots))
-    error_TT = zeros(length(integrators), length(stepsizes), length(time_snapshots))
-    error_ST = zeros(length(integrators), length(stepsizes), length(time_snapshots))    
+    if untransformed
+        error_untransformed = zeros(length(integrators), length(stepsizes), number_of_snapshots)
+    end
+    if time_transform
+        error_time_transformed = zeros(length(integrators_transformed), length(stepsizes), number_of_snapshots)
+    end
+    if space_transform
+        error_space_transformed = zeros(length(integrators_transformed), length(stepsizes), number_of_snapshots)
+    end  
 
-    # For each integrator, run the experiment
     for (integrator_idx, integrator) in enumerate(integrators)
+
+        # Repeat the experiment for the different specified step sizes 
         for (stepsize_idx, stepsize) in enumerate(stepsizes)
-            @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
-            histograms = run_1D_finite_time_experiment(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, save_traj=save_traj, mu0=mu0, sigma0=sigma0)
 
-            if time_transform
-                @info "Running time transformed $(string(nameof(integrator))) experiment with $num_repeats repeats"
-                histograms_TT = run_1D_finite_time_experiment_time_transform(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, save_traj=save_traj, mu0=mu0, sigma0=sigma0)
-            end
+            # Check that ΔT is a multiple of stepsize
+            tolerance = 1e-6  
+            @assert (abs(ΔT % stepsize) < tolerance || abs(ΔT % stepsize - stepsize) < tolerance || abs(ΔT % stepsize + stepsize) < tolerance) "ΔT must be a multiple of stepsize"
 
-            if space_transform
-                @info "Running space transformed $(string(nameof(integrator))) experiment with $num_repeats repeats"
-                histograms_ST = run_1D_finite_time_experiment_space_transform(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, save_traj=save_traj, mu0=mu0, sigma0=sigma0, x_of_y=x_of_y)
-            end
-
-            # Compute error as a function of timesnapshot for each integrator
-            estimated_errors = compute_histogram_errors(histograms, reference_histograms)
-            error[integrator_idx, stepsize_idx, :] = estimated_errors
-
-            if time_transform
-                estimated_error_TT = compute_histogram_errors(histograms_TT, reference_histograms)
-                error_TT[integrator_idx, stepsize_idx, :] = estimated_error_TT
-            end
-
-            if space_transform
-                estimated_error_ST = compute_histogram_errors(histograms_ST, reference_histograms)
-                error_ST[integrator_idx, stepsize_idx, :] = estimated_error_ST
+            if untransformed
+                @info "Running untransformed $(string(nameof(integrator))), stepsize = $stepsize"
+                histograms = run_1D_finite_time_experiment_untransformed(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, mu0=mu0, sigma0=sigma0)
+            
+                # Compute the finite time error w.r.t the reference simulation for the different time snapshots 
+                untransformed_finite_time_errors = compute_histogram_errors(histograms, reference_histograms)
+                error_untransformed[integrator_idx, stepsize_idx, :] = untransformed_finite_time_errors
             end
         end
     end
 
-    # Save the error data to file
-    save("$(save_dir)/results/error.jld2", "data", error)
-    if time_transform
-        save("$(save_dir)/results/error_TT.jld2", "data", error_TT)
-    end
-    if space_transform
-        save("$(save_dir)/results/error_ST.jld2", "data", error_ST)
+    for (integrator_idx, integrator) in enumerate(integrators_transformed)
+
+        for (stepsize_idx, stepsize) in enumerate(stepsizes)
+
+            if time_transform
+                @info "Running time transformed $(string(nameof(integrator))), stepsize = $stepsize"
+                histograms_TT = run_1D_finite_time_experiment_time_transform(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, mu0=mu0, sigma0=sigma0)
+                
+                time_transformed_finite_time_errors = compute_histogram_errors(histograms_TT, reference_histograms)
+                error_time_transformed[integrator_idx, stepsize_idx, :] = time_transformed_finite_time_errors
+            end
+
+            if space_transform
+                @info "Running space transformed $(string(nameof(integrator))), stepsize = $stepsize"
+                histograms_ST = run_1D_finite_time_experiment_space_transform(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, mu0=mu0, sigma0=sigma0, x_of_y=x_of_y)
+                
+                space_transformed_finite_time_errors = compute_histogram_errors(histograms_ST, reference_histograms)
+                error_space_transformed[integrator_idx, stepsize_idx, :] = space_transformed_finite_time_errors
+            end
+
+        end
+
     end
 
-    # Plot the error data
-    plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, save_dir, "untransformed")
+    # Save the data to file
+    if untransformed
+        save("$(save_dir)/results/error.jld2", "data", error_untransformed)
+    end
     if time_transform
-        plot_finite_time_errors(error_TT, integrators, stepsizes, time_snapshots, save_dir, "time_transformed")
+        save("$(save_dir)/results/error_TT.jld2", "data", error_time_transformed)
     end
     if space_transform
-        plot_finite_time_errors(error_ST, integrators, stepsizes, time_snapshots, save_dir, "space_transformed")
+        save("$(save_dir)/results/error_ST.jld2", "data", error_space_transformed)
+    end
+
+    # Plot finite time error results
+    if untransformed
+        plot_finite_time_errors(error_untransformed, integrators, stepsizes, time_snapshots, save_dir, "untransformed")
+    end
+    if time_transform
+        plot_finite_time_errors(error_time_transformed, integrators, stepsizes, time_snapshots, save_dir, "time_transformed")
+    end
+    if space_transform
+        plot_finite_time_errors(error_space_transformed, integrators, stepsizes, time_snapshots, save_dir, "space_transformed")
     end
 
 end

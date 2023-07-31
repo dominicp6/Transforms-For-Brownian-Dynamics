@@ -4,7 +4,7 @@ using LinearAlgebra, Random, Plots, ForwardDiff, Base.Threads, ProgressBars
 using .Calculus: symbolic_matrix_divergence2D
 export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD, leimkuhler_matthews1D, leimkuhler_matthews2D
 
-function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
+function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -34,10 +34,10 @@ function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Nu
         t += dt
     end
     
-    return q_traj
+    return q_traj, nothing
 end
 
-function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
+function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -49,7 +49,9 @@ function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Inte
     t = 0.0
     q = copy(q0)
     q_traj = zeros(m)
-    Rₖ = randn()
+    if Rₖ === nothing
+        Rₖ = randn()
+    end
 
     # simulate
     for i in 1:m
@@ -71,10 +73,10 @@ function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Inte
         Rₖ = copy(Rₖ₊₁)      
     end 
     
-    return q_traj
+    return q_traj, Rₖ
 end
 
-function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
+function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -86,7 +88,9 @@ function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, d
     t = 0.0
     q = copy(q0)
     q_traj = zeros(m)
-    Rₖ = randn()
+    if Rₖ === nothing
+        Rₖ = randn()
+    end
 
     sqrtD = x -> sqrt(D(x))
 
@@ -142,10 +146,10 @@ function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, d
         Rₖ = copy(Rₖ₊₁)
     end
 
-    return q_traj
+    return q_traj, Rₖ
 end
 
-function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
+function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -157,7 +161,9 @@ function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Int
     t = 0.0
     q = copy(q0)
     q_traj = zeros(m)
-    Rₖ = randn()
+    if Rₖ === nothing
+        Rₖ = randn()
+    end
 
     # simulate
     for i in 1:m
@@ -180,10 +186,10 @@ function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Int
         Rₖ = copy(Rₖ₊₁)      
     end 
     
-    return q_traj
+    return q_traj, Rₖ
 end
 
-function milstein_method1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
+function milstein_method1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -215,10 +221,10 @@ function milstein_method1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::N
         t += dt   
     end 
     
-    return q_traj
+    return q_traj, nothing
 end
 
-function stochastic_heun1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number)
+function stochastic_heun1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -259,10 +265,10 @@ function stochastic_heun1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::N
         t += dt
     end
     
-    return q_traj
+    return q_traj, nothing
 end
 
-function euler_maruyama2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function euler_maruyama2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -294,10 +300,10 @@ function euler_maruyama2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::N
         t += dt
     end
     
-    return q_traj
+    return q_traj, nothing
 end
 
-function euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -326,10 +332,10 @@ function euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Inte
         t += dt
     end
     
-    return q_traj
+    return q_traj, nothing
 end
 
-function naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -342,7 +348,9 @@ function naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau::Numb
     q = copy(q0)
     n = length(q0)
     q_traj = zeros(n, m)
-    Rₖ = randn(n)
+    if Rₖ === nothing
+        Rₖ = randn(n)
+    end
 
     # simulate
     for i in 1:m
@@ -363,10 +371,10 @@ function naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau::Numb
         Rₖ = copy(Rₖ₊₁)      
     end 
     
-    return q_traj
+    return q_traj, Rₖ
 end
 
-function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -379,7 +387,9 @@ function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Int
     q = copy(q0)
     n = length(q0)
     q_traj = zeros(n, m)
-    Rₖ = randn(n)
+    if Rₖ === nothing
+        Rₖ = randn(n)
+    end
 
     # simulate
     for i in 1:m
@@ -403,10 +413,10 @@ function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Int
         Rₖ = copy(Rₖ₊₁)      
     end 
     
-    return q_traj
+    return q_traj, Rₖ
 end
 
-function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -419,7 +429,9 @@ function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, 
     q = copy(q0)
     l = length(q0)
     q_traj = zeros(l, m)
-    Rₖ = randn(l)
+    if Rₖ === nothing
+        Rₖ = randn(l)
+    end
 
     # number of inner loop steps
     n = 5
@@ -471,12 +483,15 @@ function leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, 
         
         # update the time
         t += dt
+
+        # update the noise increment
+        Rₖ = copy(Rₖ₊₁)
     end
 
-    return q_traj
+    return q_traj, Rₖ
 end
 
-function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion tensor at a given configuration
@@ -489,7 +504,9 @@ function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::In
     q = copy(q0)
     n = length(q0)
     q_traj = zeros(n, m)
-    Rₖ = randn(n)
+    if Rₖ === nothing
+        Rₖ = randn(n)
+    end
 
     # simulate
     for i in 1:m
@@ -513,10 +530,10 @@ function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::In
         Rₖ = copy(Rₖ₊₁)      
     end 
     
-    return q_traj
+    return q_traj, Rₖ
 end
 
-function stochastic_heun2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function stochastic_heun2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -560,10 +577,10 @@ function stochastic_heun2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::
         t += dt
     end
     
-    return q_traj
+    return q_traj, nothing
 end
 
-function stochastic_heun2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number)
+function stochastic_heun2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     # q0 is the initial configuration
     # V is a function that computes the potential energy at a given configuration
     # D is a function that computes the diffusion coefficient at a given configuration
@@ -600,7 +617,7 @@ function stochastic_heun2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Int
         t += dt
     end
     
-    return q_traj
+    return q_traj, nothing
 end
 
 end # module Integrators
