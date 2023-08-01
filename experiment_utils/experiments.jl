@@ -9,13 +9,13 @@ include("../general_utils/transform_utils.jl")
 include("../general_utils/dynamics_utils.jl")
 using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs
 import .Calculus: differentiate1D
-import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_probabilities
+import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_invariant_distribution
 import .PlottingUtils: save_and_plot
 import .MiscUtils: init_q0, create_directory_if_not_exists
 import .TransformUtils: increment_g_counts, increment_I_counts
 import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
 import .DiffusionTensors: Dconst1D
-export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_uncertainty
+export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_error
 
 """
 Creates necessary directories and save experiment parameters for the 1D experiment.
@@ -92,7 +92,7 @@ Run a 1D finite-time experiment using the specified integrator and parameters.
 - `V`: The potential function that describes the energy landscape.
 - `D`: The diffusion coefficient function that defines the noise in the system.
 - `T`: Total simulation time.
-- `tau`: The time step for the integrator.
+- `tau`: The noise strength parameter.
 - `stepsizes`: An array of step sizes to be used in the simulation.
 - `probabilities`: The target probabilities to compute the convergence error.
 - `bin_boundaries`: Bin boundaries for constructing histograms.
@@ -100,13 +100,12 @@ Run a 1D finite-time experiment using the specified integrator and parameters.
 - `chunk_size`: Number of steps to run in each computational chunk to avoid memory issues.
 - `checkpoint`: If true, save intermediate results in checkpoints.
 - `q0`: The initial position of the trajectory. If not provided, it will be randomly initialized.
-- `save_traj`: If true, save trajectory data.
 - `time_transform`: If true, apply time transformation to the potential and diffusion.
 - `space_transform`: If true, apply space transformation to the potential and diffusion.
 - `x_of_y`: A function that maps positions y to positions x for space-transformed integrators.
 
 # Returns
-- `convergence_data`: A matrix containing convergence errors for each step size and repeat.
+- `convergence_errors`: A matrix containing convergence errors for each step size and repeat.
 
 # Details
 This function runs a 1D finite-time experiment with the specified integrator and system parameters. It supports various configurations, including time and space transformations. 
@@ -115,56 +114,68 @@ The experiment is repeated `num_repeats` times, each time with different initial
 Note: The `V` and `D` functions may be modified internally to implement time or space transformations, based on the provided `time_transform` and `space_transform` arguments.
 """
 function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, time_transform=false, space_transform=false, x_of_y=nothing)
+    
+    # Make master directory
     make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, num_repeats, V, D, tau, bin_boundaries, chunk_size, time_transform, space_transform, T=T)
 
     original_D = D
     
+    # [For transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
     transform_potential_and_diffusion!(V, D, time_transform, space_transform, tau, x_of_y)
 
+    # Compute the symbolic derivative of the potential and diffusion functions
     Vprime = differentiate1D(V)
     Dprime = differentiate1D(D)
 
-    @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
-    convergence_data = zeros(length(stepsizes), num_repeats)
+    # Initialise empty data array
+    convergence_errors = zeros(length(stepsizes), num_repeats)
 
     Threads.@threads for repeat in ProgressBar(1:num_repeats)
-        Random.seed!(repeat) # set the random seed for reproducibility
+        # set the random seed for reproducibility
+        Random.seed!(repeat) 
+
+        # If no initial position is provided, randomly initialise
         q0 = init_q0(q0, dim=1)
 
+        # Run the simulation for each specified step size
         for (stepsize_idx, dt) in enumerate(stepsizes)
-            steps_remaining = floor(T / dt)                
+            
+            steps_remaining = floor(Int, T / dt)                
             total_samples = Int(steps_remaining)
             chunk_number = 0                                 
             hist = Hist1D([], bin_boundaries)            
 
-            # For time-transformed integrators
+            # For time-transformed integrators, we need to keep track of the following quantities for reweighting
             ΣgI = zeros(length(bin_boundaries)-1)
             Σg = 0.0
 
-            # For space-transformed integrators
+            # For space-transformed integrators, we need to keep track of the following quantities for reweighting
             ΣI = zeros(length(bin_boundaries)-1)
 
-            # Run steps in chunks to avoid memory issues
             while steps_remaining > 0
+                # Run steps in chunks to minimise memory footprint
                 steps_to_run = convert(Int, min(steps_remaining, chunk_size))
                 q0, hist, chunk_number, ΣgI, Σg, ΣI = run_chunk(integrator, q0, Vprime, D, Dprime, tau, dt, steps_to_run, hist, bin_boundaries, chunk_number, time_transform, space_transform, ΣgI, Σg, ΣI, original_D, x_of_y)
                 steps_remaining -= steps_to_run
             end
 
-            convergence_data[stepsize_idx, repeat] = compute_convergence_error(hist, probabilities, total_samples, time_transform, space_transform, ΣgI, Σg, ΣI)
+            # Compute the convergence error
+            convergence_errors[stepsize_idx, repeat] = compute_convergence_error(hist, probabilities, total_samples, time_transform, space_transform, ΣgI, Σg, ΣI)
 
             if checkpoint
+                # Save the histograms
                 save("$(save_dir)/checkpoints/$(string(nameof(integrator)))/h=$dt/$(repeat).jld2", "data", hist)
             end
         end
     end
 
-    save_and_plot(integrator, convergence_data, stepsizes, save_dir)
+    # Save the error data and plot
+    save_and_plot(integrator, convergence_errors, stepsizes, save_dir)
 
-    @info "Mean L1 errors: $(mean(convergence_data, dims=2))"
-    @info "Standard deviation of L1 errors: $(std(convergence_data, dims=2))"
+    @info "Mean L1 errors: $(mean(convergence_errors, dims=2))"
+    @info "Standard deviation of L1 errors: $(std(convergence_errors, dims=2))"
 
-    return convergence_data
+    return convergence_errors
 end
 
 function transform_potential_and_diffusion!(V, D, tau, time_transform, space_transform, x_of_y)
@@ -194,57 +205,77 @@ function compute_convergence_error(hist, probabilities, total_samples, time_tran
     end
 end
 
-function run_1D_experiment_until_given_uncertainty(integrator, num_repeats, V, D, tau, stepsizes, probabilities, bin_boundaries, save_dir, target_uncertainty; chunk_size=10000, checkpoint=false, q0=nothing, time_transform=false, space_transform=false, x_of_y=nothing)
-    make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, num_repeats, V, D, tau, bin_boundaries, chunk_size, time_transform, space_transform, target_uncertainty=target_uncertainty)
+"""
+Run a 1D experiment using a given integrator until a specified error level (L1 error w.r.t. the exact invariant measure) is reached.
+
+Parameters:
+- `integrator`: The integrator to be used in the simulation.
+- `num_repeats`: Number of experiment repeats to perform.
+- `V`: Potential function V(x) representing the energy landscape.
+- `D`: Diffusion function D(x) representing the diffusion coefficient.
+- `tau`: The noise strength parameter.
+- `stepsizes`: An array of time step sizes to be used in the simulation.
+- `probabilities`: The target probability distribution to compare against.
+- `bin_boundaries`: An array of bin boundaries for histogram computation.
+- `save_dir`: The directory where results and checkpoints will be saved.
+- `target_uncertainty`: The desired uncertainty level to be achieved.
+- `chunk_size`: Number of simulation steps to be run in each chunk. Default is 10000.
+- `checkpoint`: A boolean flag indicating whether to save checkpoints. Default is false.
+- `q0`: The initial configuration for the simulation. Default is nothing, which generates a random configuration.
+- `time_transform`: A boolean flag indicating whether to apply time transformation. Default is false.
+- `space_transform`: A boolean flag indicating whether to apply space transformation. Default is false.
+- `x_of_y`: A function that maps y-coordinates to corresponding x-coordinates for space-transformed integrators. Default is nothing.
+    
+Returns:
+- `steps_until_uncertainty_data`: A matrix containing the number of steps taken until reaching the target uncertainty level for each step size and repeat.
+
+Note:
+- If `time_transform` is true, the potential function V(x) is transformed to ensure constant diffusion.
+- If `space_transform` is true, the potential function V(x) is transformed based on the provided mapping x_of_y to ensure constant diffusion.
+"""
+function run_1D_experiment_until_given_error(integrator, num_repeats, V, D, tau, stepsizes, probabilities, bin_boundaries, save_dir, target_error; chunk_size=10000, checkpoint=false, q0=nothing, time_transform=false, space_transform=false, x_of_y=nothing)
+    
+    # Create the experiment folders
+    make_experiment_folders(save_dir, integrator, stepsizes, checkpoint, num_repeats, V, D, tau, bin_boundaries, chunk_size, time_transform, space_transform, target_uncertainty=target_error)
 
     original_D = D
-    original_V = V
 
-    @assert !(time_transform && space_transform) "Invalid to run both time and space transforms"
+    # [For transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
+    transform_potential_and_diffusion!(V, D, tau, time_transform, space_transform, x_of_y)
 
-    if time_transform
-        # Transform the potential so that the diffusion is constant
-        V = x -> original_V(x) - tau * log(original_D(x))
-        D = Dconst1D
-    end
-
-    if space_transform
-        # Transform the potential so that the diffusion is constant
-        @assert x_of_y !== nothing "x_of_y must be defined for space-transformed integrators"
-        V = y -> original_V(x_of_y(y)) - 0.5 * tau * log(original_D(x_of_y(y)))
-        D = Dconst1D
-    end
-
+    # Compute the symbolic derivatives of the potential and diffusion functions
     Vprime = differentiate1D(V)
     Dprime = differentiate1D(D)
 
-    @info "Running $(string(nameof(integrator))) experiment with $num_repeats repeats"
+    # Initialise the data array
     steps_until_uncertainty_data = zeros(length(stepsizes), num_repeats)
 
     Threads.@threads for repeat in ProgressBar(1:num_repeats)
-
-        Random.seed!(repeat) # set the random seed for reproducibility
+        # set the random seed for reproducibility
+        Random.seed!(repeat) 
         q0 = init_q0(q0)
 
+        # Run the simulation for each specified step size
         for (stepsize_idx, dt) in enumerate(stepsizes)
 
-            # Initialise for this step size
-            steps_ran = 0                                     # total number of steps
-            chunk_number = 0                                  # number of chunks run so far
-            error = Inf                                       # error in the histogram
-            hist = Hist1D([], bin_boundaries)                 # histogram of the trajectory
+            steps_ran = 0                                    
+            chunk_number = 0                                 
+            error = Inf                                    
+            hist = Hist1D([], bin_boundaries)                 
 
-            # For time-transformed integrators
+            # For time-transformed integrators, we need to keep track of the following quantities
             ΣgI = zeros(length(bin_boundaries)-1)
             Σg = 0.0
 
-            # For space-transformed integrators
+            # For space-transformed integrators, we need to keep track of the following quantities
             ΣI = zeros(length(bin_boundaries)-1)
 
-            # Run steps in chunks to avoid memory issues
-            while error > target_uncertainty
-                q0, hist, chunk_number, ΣgI, Σg, ΣI = run_chunk(integrator, q0, Vprime, D, Dprime, tau, dt, chunk_size, hist, bin_boundaries, save_dir, repeat, chunk_number, save_traj, time_transform, space_transform, ΣgI, Σg, ΣI, original_D, x_of_y)
+            while error > target_error
+                # Run steps in chunks to minimise memory footprint
+                q0, hist, chunk_number, ΣgI, Σg, ΣI = run_chunk(integrator, q0, Vprime, D, Dprime, tau, dt, chunk_size, hist, bin_boundaries, chunk_number, time_transform, space_transform, ΣgI, Σg, ΣI, original_D, x_of_y)
                 steps_ran += chunk_size
+                
+                # Compute the current error
                 if time_transform
                     empirical_probabilities = ΣgI ./ Σg
                     error = compute_1D_mean_L1_error(empirical_probabilities, probabilities)
@@ -256,39 +287,62 @@ function run_1D_experiment_until_given_uncertainty(integrator, num_repeats, V, D
                 end
             end
 
+            # Populate the data array
             if time_transform
-                empirical_probabilities = ΣgI ./ Σg
                 steps_until_uncertainty_data[stepsize_idx, repeat] = steps_ran
             elseif space_transform
-                empirical_probabilities = ΣI ./ steps_ran
                 steps_until_uncertainty_data[stepsize_idx, repeat] = steps_ran
             else
                 steps_until_uncertainty_data[stepsize_idx, repeat] = steps_ran
             end
 
             if checkpoint
+                # Save the histograms
                 save("$(save_dir)/checkpoints/$(string(nameof(integrator)))/h=$dt/$(repeat).jld2", "data", hist)
             end
         end
     end
 
-    save_and_plot(integrator, steps_until_uncertainty_data, stepsizes, save_dir, ylabel="Steps until uncertainty < $(target_uncertainty)", error_in_mean=true)
+    # Save the data and plot the results
+    save_and_plot(integrator, steps_until_uncertainty_data, stepsizes, save_dir, ylabel="Steps until uncertainty < $(target_error)", error_in_mean=true)
 
     return steps_until_uncertainty_data
 end
 
+"""
+Run a master 1D experiment with multiple integrators.
 
-function master_1D_experiment(integrators, num_repeats, V, D, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=false, space_transform=false, x_of_y=nothing)
+Parameters:
+- `integrators`: An array of integrators to be used in the experiments.
+- `num_repeats`: Number of experiment repeats to perform for each integrator.
+- `V`: Potential function V(x) representing the energy landscape.
+- `D`: Diffusion function D(x) representing the diffusion coefficient.
+- `T`: Total time for the simulation.
+- `tau`: The noise strength parameter.
+- `stepsizes`: An array of time step sizes to be used in the simulation.
+- `bin_boundaries`: An array of bin boundaries for histogram computation.
+- `save_dir`: The directory where results and time convergence data will be saved.
+- `chunk_size`: Number of simulation steps to be run in each chunk. Default is 10000000.
+- `checkpoint`: A boolean flag indicating whether to save checkpoints. Default is false.
+- `q0`: The initial configuration for the simulation. Default is nothing, which generates a random configuration.
+- `time_transform`: A boolean flag indicating whether to apply time transformation. Default is false.
+- `space_transform`: A boolean flag indicating whether to apply space transformation. Default is false.
+- `x_of_y`: A function that maps y-coordinates to corresponding x-coordinates for space-transformed integrators. Default is nothing.
+
+Returns:
+- The function saves the results of each experiment in the specified `save_dir` and also saves the time convergence data in a file named "time.json".
+"""
+function master_1D_experiment(integrators, num_repeats, V, D, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=false, q0=nothing, time_transform=false, space_transform=false, x_of_y=nothing)
     to = TimerOutput()
 
-    @info "Computing Expected Probabilities"
-    probabilities = compute_1D_probabilities(V, tau, bin_boundaries)
+    @info "Computing the Invariant Distribution"
+    exact_invariant_distribution = compute_1D_invariant_distribution(V, tau, bin_boundaries)
 
     @info "Running Experiments"
     for integrator in integrators
         @info "Running $(string(nameof(integrator))) experiment"
         @timeit to "Exp$(string(nameof(integrator)))" begin
-            convergence_data = run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, probabilities, bin_boundaries, save_dir, chunk_size=chunk_size, checkpoint=checkpoint, q0=q0, save_traj=save_traj, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
+            _ = run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, exact_invariant_distribution, bin_boundaries, save_dir, chunk_size=chunk_size, checkpoint=checkpoint, q0=q0, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
         end
     end
 

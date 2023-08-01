@@ -20,6 +20,7 @@ function debias_hist(hist, transform)
 end
 
 function increment_g_counts(q_chunk, D, bin_boundaries, ΣgI, Σg)
+    # Used for reweighting time-transformed trajectories (see paper for details)
     g(x) = 1/D(x)
     
     # Iterate through trajectory points and assign to corresponding bin
@@ -39,6 +40,7 @@ end
 
 
 function increment_g_counts2D(q_chunk, D, x_bins, y_bins, ΣgI, Σg, R)
+    # Used for reweighting time-transformed trajectories (see paper for details)
     g(x,y) = 1/D(x,y)^2
     
     # Iterate through trajectory points and assign to corresponding bin
@@ -58,6 +60,7 @@ function increment_g_counts2D(q_chunk, D, x_bins, y_bins, ΣgI, Σg, R)
 end
 
 function increment_I_counts(q_chunk, x_of_y, bin_boundaries, ΣI)
+    # Used for reweighting space-transformed trajectories (see paper for details)
     # Iterate through trajectory points and assign to corresponding bin
     for q in q_chunk
         # Find the index of the histogram bin that q is in

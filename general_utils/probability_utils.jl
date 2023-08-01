@@ -1,8 +1,8 @@
 module ProbabilityUtils
 using HCubature, QuadGK, FHist, HDF5, Statistics, StatsBase, Plots
-export compute_1D_probabilities, compute_2D_probabilities, compute_1D_mean_L1_error, compute_2D_mean_L1_error
+export compute_1D_invariant_distribution, compute_2D_invariant_distribution, compute_1D_mean_L1_error, compute_2D_mean_L1_error
 
-function compute_2D_probabilities(V, tau, xmin, ymin, xmax, ymax, n_bins)
+function compute_2D_invariant_distribution(V, tau, xmin, ymin, xmax, ymax, n_bins)
     # Compute the expected counts in a 2D histogram of the configuration space
 
     # Histogram parameters
@@ -33,7 +33,7 @@ function compute_2D_probabilities(V, tau, xmin, ymin, xmax, ymax, n_bins)
 end
 
 
-function compute_1D_probabilities(V, tau, bins; configuration_space=(-12,12))
+function compute_1D_invariant_distribution(V, tau, bins; configuration_space=(-12,12))
     # Compute the expected counts in a 1D histogram of the configuration space
 
     n_bins = length(bins) - 1

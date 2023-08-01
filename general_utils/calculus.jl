@@ -2,8 +2,10 @@ module Calculus
 using ForwardDiff, Symbolics
 export matrix_divergence, differentiate1D, differentiateND, differentiate2D, symbolic_vector_divergence2D
 
+"""
+Compute the symbolic derivative of a scalar function of a single variable
+"""
 function differentiate1D(f)
-    # Compute the symbolic derivative of a scalar function of a single variable
     @variables x
     gradGen = Differential(x)(f(x))
     gradExp = expand_derivatives(gradGen)
@@ -12,8 +14,10 @@ function differentiate1D(f)
     return gradFn
 end
 
+"""
+Compute the symbolic gradient of a scalar function of two variables
+"""
 function differentiate2D(f::Function)
-    # Compute the symbolic gradient of a scalar function of two variables
     @variables x y
     grad_f_expr = Symbolics.gradient(f(x,y), [x,y])
     grad1 = build_function(grad_f_expr[1], [x,y], expression=false)
@@ -25,8 +29,10 @@ function differentiate2D(f::Function)
     return grad
 end
 
+"""
+Compute the symbolic divergence of a vector function of two variables
+"""
 function symbolic_vector_divergence2D(V)
-    # Compute the symbolic divergence of a vector function
     @variables x y
     div1 = Differential(x)(V(x,y)[1])
     div2 = Differential(y)(V(x,y)[2])
@@ -41,8 +47,10 @@ function symbolic_vector_divergence2D(V)
     return div   #println(div(1.0, 2.0)) # expect 17.0
 end
 
+"""
+Compute the symbolic matrix divergence of a matrix function of two variables
+"""
 function symbolic_matrix_divergence2D(M)
-    # Compute the symbolic matrix divergence of a matrix function
     # The matrix divergence is defined as the column vector resulting from the vector divergence of each row
     V1 = (x, y) -> M(x,y)[1,:]
     V2 = (x, y) -> M(x,y)[2,:]
@@ -55,8 +63,10 @@ function symbolic_matrix_divergence2D(M)
     return div_M
 end
 
+"""
+Compute the symbolic gradient of a scalar function of multiple variables
+"""
 function differentiateND(f::Function)
-    # Compute the symbolic gradient of a scalar function of multiple variables
     @variables x[1:length(f.args)...]
     gradGen = gradient(f(x...), x)
     gradFn = build_function(gradGen, x, expression=false)
@@ -64,8 +74,10 @@ function differentiateND(f::Function)
     return gradFn
 end
 
+"""
+Compute the divergence of a vector function evaluated at vector variable q
+"""
 function vector_divergence(V, q)
-    # Compute the divergence of a vector function evaluated at vector variable q
     div = 0
     for i in eachindex(q)
         div += ForwardDiff.gradient(x -> V(x)[i], q)[i]
@@ -73,8 +85,10 @@ function vector_divergence(V, q)
     return div
 end
 
+"""
+Compute the matrix divergence of a matrix function evaluated at vector variable q
+"""
 function matrix_divergence(M, q)
-    # Compute the matrix divergence of a matrix function evaluated at vector variable q
     # The matrix divergence is defined as the column vector resulting from the vector divergence of each row
     div_M = zeros(size(q))
     for i in eachindex(q)

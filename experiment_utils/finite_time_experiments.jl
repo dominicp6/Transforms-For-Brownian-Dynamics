@@ -10,7 +10,7 @@ include("../general_utils/dynamics_utils.jl")
 include("experiments.jl")
 using FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, Plots
 import .Calculus: differentiate1D
-import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_probabilities
+import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_invariant_distribution
 import .PlottingUtils: save_and_plot
 import .TransformUtils: increment_I_counts
 import .MiscUtils: init_q0, create_directory_if_not_exists
@@ -79,7 +79,7 @@ Create necessary directories and save experiment parameters for the finite-time 
     - `num_repeats`: The number of times to repeat the simulation.
     - `V`: The potential function used in the simulation.
     - `D`: The diffusion coefficient function used in the simulation.
-    - `tau`: The noise strength parameter for the simulation.
+    - `tau`: The noise strength parameter.
     - `x_bins`: The bin boundaries for the histograms.
     - `chunk_size`: The number of repeats to run in each computational chunk.
     - `ΔT`: The time interval for saving the distribution in the simulation.

@@ -6,42 +6,43 @@ include("experiment_utils/experiments2D.jl")
 using LinearAlgebra
 import .Integrators: euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, stochastic_heun2D, leimkuhler_matthews2D    
 import .Potentials: bowl2D, quadrupleWell2D, moroCardin2D, muller_brown, softQuadrupleWell2D
-import .DiffusionTensors: Dconst2D, Dlinear2D, Dquadratic2D, DmoroCardin, Doseen, DRinvertible
-import .ProbabilityUtils:  compute_2D_probabilities
+import .DiffusionTensors: Dconst2D, Dlinear2D, Dquadratic2D, DmoroCardin, Doseen
+import .ProbabilityUtils:  compute_2D_invariant_distribution
 import .Experiments2D: master_2D_experiment
 
 # Name
-exp_name = "MV_1M_baoab_limit_method"
+exp_name = "2D_test"
+master_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs" # Directory to save results in
+T = 1000      # length of simulation
+tau = 1       # noise coefficient
+num_repeats = 12
 
-# Integrator Params
-T = 1000000
-tau = 1
-
-# Experiment Params
-num_repeats = 11
+# The step sizes to use (to use a single step size, set stepsizes = [stepsize])
 num_step_sizes = 10
 integrators = [leimkuhler_matthews2D]
 stepsizes = 10 .^ range(-2.5,stop=-0.5,length=num_step_sizes)
-println(stepsizes)
-# Histogram parameters
+
+# Histogram parameters for binning
 xmin = -3
 xmax = 3
 ymin = -3
 ymax = 3
-n_bins = 30
+n_bins = 30   # number of bins in each dimension
 
-#Potential and diffusion 
+# The potential and diffusion coefficient to use
 potential = softQuadrupleWell2D
 diffusion = DmoroCardin
-R = Matrix{Float64}(I, 2, 2)
+R = Matrix{Float64}(I, 2, 2)  # R matrix associated with the diffusion tensor (see paper for details)
+                              # Here, the diffusion tensor is isotropic and so the R matrix is the identity matrix
 
-# Transformations
+# Information on the transformation
 time_transform = false
+
+# Whether to save checkpoints
 checkpoint = true
-save_traj = false
 
 # Do not modify below this line ----------------------------------------------
-save_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs/$(exp_name)"
+save_dir = "$(master_dir)/$(exp_name)"
 
 # Run the experiments
 @info "Running: $(exp_name)"
