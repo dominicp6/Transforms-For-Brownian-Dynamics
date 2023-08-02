@@ -264,8 +264,8 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
     # Initialise an empty histogram for each time snapshot (to store the finite-time distributions)
     histograms = [Hist1D(0, bin_boundaries) for i in 1:number_of_snapshots]
     
-    # While there are still trajectories to run
     repeats_remaining = num_repeats
+    # While there are still trajectories to run...
     while repeats_remaining > 0
 
         # Compute the number of repeats to run in this computational chunk
@@ -282,40 +282,88 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
             # Set the initial value of Rₖ to nothing
             previous_Rₖ = nothing
 
-            # Simulate until T, saving the distribution every ΔT
-            for snapshot_number in 1:number_of_snapshots
+            # Initialise time remaining
+            time_remaining = T
 
-                time_remaining_in_snapshot = ΔT
+            # Initialise the time until the next snapshot
+            time_until_next_snapshot = ΔT
 
-                while time_remaining_in_snapshot > 0
-                    # Compute time rescaling factor (approximation - evaluate this at the initial position)
-                    g = 1/original_D(q0)
+            # Initialise the snapshot number
+            snapshot_number = 0
+
+            # Simulate until T, saving the position every ΔT
+            while snapshot_number < number_of_snapshots
+                # Compute the time rescaling factor g based on the current position
+                g = 1/original_D(q0)
+
+                # Run one step of the integrator 
+                q1, Rₖ = integrator(q0, Vprime, D, Dprime, tau, 1, stepsize, previous_Rₖ)
+                
+                # Compute the elapsed time during this step (in the original time scale)
+                delta_t = g * stepsize
+
+                # Update the time remaining until next snapshot
+                time_until_next_snapshot -= delta_t
+
+                # If we have not yet reached the next snapshot
+                if time_until_next_snapshot > 0
+                    # Update the position and the previous value of Rₖ
+                    previous_Rₖ = Rₖ
+                    q0 = q1[1]
+                else
+                    # We have overshot, so we need to perform linear interpolation to estimate the position at the snapshot time
+                    q_final = q0 + (time_until_next_snapshot / delta_t) * (q1[1] - q0)
+
+                    # Update the snapshot number (if this reaches number_of_snapshots, the while loop will terminate after this iteration)
+                    snapshot_number += 1
                     
-                    # Run one step of the integrator 
-                    q1, Rₖ = integrator(q0, Vprime, D, Dprime, tau, 1, stepsize, previous_Rₖ)
+                    # Save the final snapshot position
+                    snapshots[snapshot_number, repeat] = q_final
 
-                    # t time elapsed in this step
-                    delta_t = g * stepsize
+                    # Compute the overshoot time (time_remaining_in_snapshot is negative)
+                    overshoot_time = abs(time_until_next_snapshot)
 
-                    # Update the time remaining in this snapshot
-                    time_remaining_in_snapshot -= delta_t
-
-                    if time_remaining_in_snapshot > 0
-                        # Update the previous value of Rₖ
-                        previous_Rₖ = Rₖ
-
-                        # Update the current position
-                        q0 = q1[1]
-                    else
-                        # Perform a linear interpolation to find the position at the end of the snapshot (approximation)
-                        q0 = q0 + (q1[1] - q0) * (time_remaining_in_snapshot + delta_t) / delta_t
-                    end
-                end 
-    
-                # Save the final snapshop position
-                snapshots[snapshot_number, repeat] = q0
+                    # We dont resume from q_final to avoid accummulating bias from the linear interpolation made at each snapshot
+                    # We resume our simulation from the sample just before overshooting (q0), so:
+                    time_until_next_snapshot = ΔT + overshoot_time
+                end
             end
         end
+
+        #     # Simulate until T, saving the distribution every ΔT
+        #     for snapshot_number in 1:number_of_snapshots
+
+        #         time_remaining_in_snapshot = ΔT
+
+        #         while time_remaining_in_snapshot > 0
+        #             # Compute time rescaling factor (approximation - evaluate this at the initial position)
+        #             g = 1/original_D(q0)
+                    
+        #             # Run one step of the integrator 
+        #             q1, Rₖ = integrator(q0, Vprime, D, Dprime, tau, 1, stepsize, previous_Rₖ)
+
+        #             # t time elapsed in this step
+        #             delta_t = g * stepsize
+
+        #             # Update the time remaining in this snapshot
+        #             time_remaining_in_snapshot -= delta_t
+
+        #             if time_remaining_in_snapshot > 0
+        #                 # Update the previous value of Rₖ
+        #                 previous_Rₖ = Rₖ
+
+        #                 # Update the current position
+        #                 q0 = q1[1]
+        #             else
+        #                 # Perform a linear interpolation to find the position at the end of the snapshot (approximation)
+        #                 q0 = q0 + (q1[1] - q0) * (time_remaining_in_snapshot + delta_t) / delta_t
+        #             end
+        #         end 
+    
+        #         # Save the final snapshop position
+        #         snapshots[snapshot_number, repeat] = q0
+        #     end
+        # end
 
         repeats_remaining -= repeats_to_run
 
