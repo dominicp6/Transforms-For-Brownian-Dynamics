@@ -44,22 +44,22 @@ function plot_histograms(integrator, histogram_data, stepsizes, save_dir; xlabel
     end
 end
 
-function save_and_plot(integrator, convergence_data, stepsizes, save_dir; xlabel="dt", ylabel="Mean L1 error", error_in_mean=false)
+function save_and_plot(integrator, y_datasets, x_dataset, save_dir; xlabel="dt", ylabel="Mean L1 error", error_in_mean=false, descriptor="")
     @info "Saving data"
-    h5write("$(save_dir)/$(integrator).h5", "data", convergence_data)
+    h5write("$(save_dir)/$(integrator)$(descriptor).h5", "data", y_datasets)
 
-    number_of_repeats = size(convergence_data, 2)
+    number_of_repeats = size(y_datasets, 2)
 
     # Plot (dim 1 is the step size, dim 2 is the repeat)
-    plot(stepsizes, mean(convergence_data, dims=2), title=string(nameof(integrator)), xlabel=xlabel, ylabel=ylabel, xscale=:log10, yscale=:log10, label="")
+    plot(x_dataset, mean(y_datasets, dims=2), title=string(nameof(integrator)), xlabel=xlabel, ylabel=ylabel, xscale=:log10, yscale=:log10, label="")
     if error_in_mean
-        plot!(stepsizes, mean(convergence_data, dims=2)+std(convergence_data, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
-        plot!(stepsizes, mean(convergence_data, dims=2)-std(convergence_data, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
+        plot!(x_dataset, mean(y_datasets, dims=2)+std(y_datasets, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
+        plot!(x_dataset, mean(y_datasets, dims=2)-std(y_datasets, dims=2)/sqrt(number_of_repeats), ls=:dash, lc=:black, label="")
     else
-        plot!(stepsizes, mean(convergence_data, dims=2)+std(convergence_data, dims=2), ls=:dash, lc=:black, label="")
-        plot!(stepsizes, mean(convergence_data, dims=2)-std(convergence_data, dims=2), ls=:dash, lc=:black, label="")
+        plot!(x_dataset, mean(y_datasets, dims=2)+std(y_datasets, dims=2), ls=:dash, lc=:black, label="")
+        plot!(x_dataset, mean(y_datasets, dims=2)-std(y_datasets, dims=2), ls=:dash, lc=:black, label="")
     end
-    savefig("$(save_dir)/$(integrator).png")
+    savefig("$(save_dir)/$(integrator)$(descriptor).png")
 end
 
 function save_and_plot(integrator, convergence_data, diffusion_coefficient_data, stepsizes, save_dir; xlabel="dt", ylabel="Mean L1 error", error_in_mean=false)
