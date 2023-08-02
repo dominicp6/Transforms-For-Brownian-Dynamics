@@ -6,14 +6,12 @@ include("../general_utils/probability_utils.jl")
 include("../general_utils/plotting_utils.jl")
 include("../general_utils/misc_utils.jl")
 include("../general_utils/transform_utils.jl")
-include("../general_utils/autocorrelation_utils.jl")
-using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs
+using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs, LombScargle, FFTW, Plots, Interpolations
 import .Calculus: differentiate1D
 import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_invariant_distribution
 import .PlottingUtils: save_and_plot
 import .MiscUtils: init_q0, create_directory_if_not_exists
 import .TransformUtils: increment_g_counts, increment_I_counts
-import .AutocorrelationUtils: autocorrelation_direct, autocorrelation_fft
 import .DiffusionTensors: Dconst1D
 export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_error, run_autocorrelation_experiment
 
@@ -178,19 +176,26 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
     return convergence_errors
 end
 
-function transform_potential_and_diffusion!(V, D, tau, time_transform, space_transform, x_of_y)
+function transform_potential_and_diffusion(original_V, original_D, tau, time_transform, space_transform, x_of_y)
     @assert !(time_transform && space_transform) "Not supported to run both time and space transforms"
     
     if time_transform
-        V = x -> V(x) - tau * log(D(x))
+        V = x -> original_V(x) - tau * log(original_D(x))
         D = Dconst1D
     end
 
     if space_transform
         @assert x_of_y !== nothing "x_of_y must be defined for space-transformed integrators"
-        V = y -> V(x_of_y(y)) - 0.5 * tau * log(D(x_of_y(y)))
+        V = y -> original_V(x_of_y(y)) - 0.5 * tau * log(original_D(x_of_y(y)))
         D = Dconst1D
     end
+
+    if !(time_transform || space_transform)
+        V = original_V
+        D = original_D
+    end
+
+    return V, D
 end
 
 function compute_convergence_error(hist, probabilities, total_samples, time_transform, space_transform, ΣgI, Σg, ΣI)
@@ -241,7 +246,7 @@ function run_1D_experiment_until_given_error(integrator, num_repeats, V, D, tau,
     original_D = D
 
     # [For transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
-    transform_potential_and_diffusion!(V, D, tau, time_transform, space_transform, x_of_y)
+    V, D = transform_potential_and_diffusion(V, D, tau, time_transform, space_transform, x_of_y)
 
     # Compute the symbolic derivatives of the potential and diffusion functions
     Vprime = differentiate1D(V)
@@ -309,54 +314,72 @@ function run_1D_experiment_until_given_error(integrator, num_repeats, V, D, tau,
     return steps_until_uncertainty_data
 end
 
-function run_autocorrelation_experiment(integrator, num_repeats, V, D, T, tau, stepsize, save_dir; time_transform=false, space_transform=false, x_of_y=nothing)
+function run_autocorrelation_experiment(integrator, num_repeats, V, D, T, tau, stepsize, max_lag, save_dir; time_transform=false, space_transform=false, x_of_y=nothing)
 
-    if space_transform
-        return UnimplementedError("Autocorrelation experiment not implemented for space-transformed integrators.")
-    end
-
-    if time_transform
-        return UnimplementedError("Autocorrelation experiment not implemented for time-transformed integrators.")
-    end
+    @assert max_lag > 0
+    @assert !(time_transform && space_transform)
 
     create_directory_if_not_exists(save_dir)
     original_D = D
 
     # [For transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
-    transform_potential_and_diffusion!(V, D, tau, time_transform, space_transform, x_of_y)
+    V, D = transform_potential_and_diffusion(V, D, tau, time_transform, space_transform, x_of_y)
 
     # Compute the symbolic derivatives of the potential and diffusion functions
     Vprime = differentiate1D(V)
     Dprime = differentiate1D(D)
 
-    # Initialise empty arrays to store the autocorrelation data
-    ac_fft_data = zeros(num_repeats, floor(Int, T/stepsize))
-    ac_direct_data = zeros(num_repeats, floor(Int, T/stepsize))
+    num_samples = floor(Int, T/stepsize)
 
-    Threads.@threads for repeat in ProgressBar(1:num_repeats)
+    max_lag = min(max_lag, num_samples)
+    skip_first = 1 
+
+    # Initialise empty arrays to store the autocorrelation data
+    ac_sb_data = zeros(max_lag, num_repeats)
+
+    for repeat in ProgressBar(1:num_repeats)
         # set the random seed for reproducibility
         Random.seed!(repeat) 
         total_samples = floor(Int, T/stepsize)
 
-        q_traj, _ = integrator(q0, Vprime, D, Dprime, tau, stepsize, total_samples)
+        q0 = init_q0(nothing)
+
+        q_traj, _ = integrator(q0, Vprime, D, Dprime, tau, total_samples, stepsize)
+
+        if space_transform
+            # Transform the trajectory back to the original space before computing the autocorrelation
+            q_traj = x_of_y.(q_traj)
+        end
+
+        if time_transform
+            # Compute the t times associated with each sample
+            t_times = zeros(total_samples)
+            for i in 1:total_samples
+                if i == 1
+                    t_times[i] = 1/original_D(q_traj[i]) * stepsize
+                else
+                    t_times[i] = t_times[i-1] + 1/original_D(q_traj[i]) * stepsize
+                end
+            end
+
+            # Compute an interpolated trajectory
+            interp = linear_interpolation(t_times, q_traj)
+            t_expected = stepsize:stepsize:maximum(t_times)
+            q_traj = interp.(t_expected)
+        end
 
         # Compute the autocorrelation
-        ac_fft = autocorrelation_fft(q_traj)
-        ac_direct = autocorrelation_direct(q_traj)
+        ac_sb = autocor(q_traj, 1:max_lag)
 
         # Populate the data arrays
-        ac_fft_data[repeat, :] = ac_fft
-        ac_direct_data[repeat, :] = ac_direct
-
-        end
+        ac_sb_data[:, repeat] = ac_sb
     end
 
     # Time series
-    t = range(0, step=stepsize, length=length(ac_fft_data[1, :]))
+    t = range(0, step=stepsize, length=max_lag)
 
     # Save the data and plot the results
-    save_and_plot(integrator, ac_fft_data, t, save_dir, xlabel="Time", ylabel="Autocorrelation", error_in_mean=true, descriptor="_FFT")
-    save_and_plot(integrator, ac_direct_data, t, save_dir, xlabel="Time", ylabel="Autocorrelation", error_in_mean=true, descriptor="_direct")
+    save_and_plot(integrator, ac_sb_data[skip_first:end, :], t[skip_first:end], save_dir, xlabel="Time", ylabel="Autocorrelation", error_in_mean=true, descriptor="_SB", xscale=:identity, yscale=:identity)
 end
 
 

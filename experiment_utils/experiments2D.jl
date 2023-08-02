@@ -132,7 +132,7 @@ function run_2D_experiment(integrator, num_repeats, V, D, T, R, tau, stepsizes, 
    
     # [For time-transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
     D_diag = nothing
-    transform_potential_and_diffusion!(V, D, D_diag, R, tau, time_transform)
+    V, D, D_diag = transform_potential_and_diffusion(V, D, D_diag, R, tau, time_transform)
 
     # Verify whether the diffusion is identity
     identity_diffusion = is_identity_diffusion(D)
@@ -207,14 +207,19 @@ function run_2D_experiment(integrator, num_repeats, V, D, T, R, tau, stepsizes, 
 end
 
 
-function transform_potential_and_diffusion!(V, D, D_diag, R, tau, time_transform)
+function transform_potential_and_diffusion(original_V, original_D, D_diag, R, tau, time_transform)
     if time_transform 
-        assert_isotropic_diagonal_diffusion(D)
-        D_diag = (x,y) -> D(x,y)[1,1]
+        assert_isotropic_diagonal_diffusion(original_D)
+        D_diag = (x,y) -> original_D(x,y)[1,1]
         # Transform the potential so that the diffusion is constant
-        V = (x,y) -> V(R[1,1]*x + R[1,2]*y, R[2,1]*x + R[2,2]*y) - 2 * tau * log(D_diag(R[1,1]*x + R[1,2]*y, R[2,1]*x + R[2,2]*y))
+        V = (x,y) -> original_V(R[1,1]*x + R[1,2]*y, R[2,1]*x + R[2,2]*y) - 2 * tau * log(D_diag(R[1,1]*x + R[1,2]*y, R[2,1]*x + R[2,2]*y))
         D = Dconst2D
+    else
+        V = original_V
+        D = original_D
     end
+
+    return V, D, D_diag
 end
 
 """

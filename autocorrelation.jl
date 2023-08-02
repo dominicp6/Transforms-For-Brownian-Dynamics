@@ -16,11 +16,11 @@ with a certain choice of integrator and timestep.
 Time transformations and Lamperti transforms are supported.
 """
 
-exp_name = "autocorrelation_test" # Name
-master_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/new_experiments" # Directory to save results in
+exp_name = "autocorrelation_testTT2" # Name
+master_dir = "/Users/dominic/JuliaProjects/LangevinIntegrators/new_experiments" # Directory to save results in
 
 
-T = 1000             # length of simulation
+T = 5000               # length of simulation
 tau = 1              # noise coefficient
 num_repeats = 12
 
@@ -28,12 +28,19 @@ num_repeats = 12
 integrator = stochastic_heun1D
 stepsize = 0.01
 
+max_lag = 1000
+
+space_transform=false
+time_transform=true
+
 # The potential and diffusion coefficents to use
 potential = softWell1D
 diffusion = Dabs1D
+x_of_y = y -> (y/4) * (abs(y) + 4)  # This spatial transformation is specific to the Dabs1D diffusion coefficient (see paper for details)
+                                    # If you want to use a different diffusion coefficient, you will need compute the appropriate mapping from the definition of the Lamperti transform
 
 # Do not modify below this line ----------------------------------------------
 save_dir = "$(master_dir)/$(exp_name)"
 
 @info "Running: $(exp_name)"
-run_autocorrelation_experiment(integrator, num_repeats, potential, diffusion, T, tau, stepsize, save_dir)
+run_autocorrelation_experiment(integrator, num_repeats, potential, diffusion, T, tau, stepsize, max_lag, save_dir, space_transform=space_transform, time_transform=time_transform, x_of_y=x_of_y)
