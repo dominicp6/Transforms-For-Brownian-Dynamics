@@ -1,5 +1,5 @@
 module PlottingUtils
-using Plots, FHist
+using Plots, FHist, HDF5, Statistics
 export plot_trajectory, plot_2D_potential, plot_histograms, save_and_plot
 
 function plot_trajectory(q, dt)

@@ -24,6 +24,9 @@ function make_experiment2D_folders(save_dir, integrator, stepsizes, checkpoint, 
     create_directory_if_not_exists(save_dir)
 
     create_directory_if_not_exists("$(save_dir)/heatmaps/$(string(nameof(integrator)))")
+    for dt in stepsizes
+        create_directory_if_not_exists("$(save_dir)/heatmaps/$(string(nameof(integrator)))/h=$dt")
+    end
 
     if checkpoint
         for dt in stepsizes
@@ -63,19 +66,19 @@ function run_chunk2D(integrator, q0, Vprime, D, div_DDT, tau::Number, dt::Number
     if identity_D
         # If the diffusion is identity, we can use a faster integrator
         if string(nameof(integrator)) == "euler_maruyama2D"
-            q_chunk = euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+            q_chunk, _ = euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
             
         elseif string(nameof(integrator)) == "naive_leimkuhler_matthews2D"
-            q_chunk = naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+            q_chunk, _ = naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
 
         elseif string(nameof(integrator)) == "stochastic_heun2D"
-            q_chunk = stochastic_heun2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+            q_chunk, _ = stochastic_heun2D_identityD(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
         else
             # Integrator not recognised
             error("Integrator $(string(nameof(integrator))) does not have a fast version for identity diffusion")
         end
     else
-        q_chunk = integrator(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
+        q_chunk, _ = integrator(q0, Vprime, D, div_DDT, tau, steps_to_run, dt)
     end
 
     # [For time-transformed integrators] Increment g counts

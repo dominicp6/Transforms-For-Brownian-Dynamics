@@ -6,14 +6,12 @@ include("../general_utils/probability_utils.jl")
 include("../general_utils/plotting_utils.jl")
 include("../general_utils/misc_utils.jl")
 include("../general_utils/transform_utils.jl")
-include("../general_utils/dynamics_utils.jl")
 using HCubature, QuadGK, FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, TimerOutputs
 import .Calculus: differentiate1D
 import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_invariant_distribution
 import .PlottingUtils: save_and_plot
 import .MiscUtils: init_q0, create_directory_if_not_exists
 import .TransformUtils: increment_g_counts, increment_I_counts
-import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
 import .DiffusionTensors: Dconst1D
 export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_error
 
@@ -61,7 +59,7 @@ Note: The function is typically called within the context of the main simulation
 function run_chunk(integrator, q0, Vprime, D, Dprime, tau::Number, dt::Number, steps_to_run::Integer, hist, bin_boundaries, chunk_number::Integer, time_transform::Bool, space_transform:: Bool, ΣgI::Union{Vector, Nothing}, Σg::Union{Float64, Nothing}, ΣI::Union{Vector, Nothing}, original_D, x_of_y)
 
     # Run a chunk of the simulation
-    q_chunk = integrator(q0, Vprime, D, Dprime, tau, steps_to_run, dt)
+    q_chunk, _ = integrator(q0, Vprime, D, Dprime, tau, steps_to_run, dt)
 
     # Get the last position of the chunk
     q0 = copy(q_chunk[end])
@@ -121,7 +119,7 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
     original_D = D
     
     # [For transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
-    transform_potential_and_diffusion!(V, D, time_transform, space_transform, tau, x_of_y)
+    transform_potential_and_diffusion!(V, D, tau, time_transform, space_transform, x_of_y)
 
     # Compute the symbolic derivative of the potential and diffusion functions
     Vprime = differentiate1D(V)

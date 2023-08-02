@@ -8,17 +8,24 @@ import .Potentials: doubleWell1D, LM2013, localWell1D, transformedLocalWell1D, t
 import .DiffusionTensors: Dconst1D, Dabs1D, Dquadratic1D
 import .ProbabilityUtils: compute_1D_invariant_distribution
 import .FiniteTimeExperiments: run_1D_finite_time_convergence_experiment
-using WAV
+
+"""
+This script performs one-dimensional, variable-diffusion Brownian dynamics experiments and
+constructs plots of the error in the finite time distribution, as a function of time, for 
+a range of specified step sizes.
+
+Time rescalings and lamperti transforms are supported.
+"""
 
 exp_name = "finite_time_test" # Name
-master_dir = "/Users/dominic/JuliaProjects/LangevinIntegrators/outputs" # Directory to save results in
+master_dir = "path/to/results/directory" # Directory to save results in
 
 
 T =  4      # length of simulation     
 ΔT = 0.04   # interval between snapshots of finite-time distributions
 tau = 1     # noise coefficient
 
-num_repeats = 10000
+num_repeats = 1000
 
 # The integrators to use
 integrators = [euler_maruyama1D, naive_leimkuhler_matthews1D, leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, hummer_leimkuhler_matthews1D]

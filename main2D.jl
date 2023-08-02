@@ -10,9 +10,16 @@ import .DiffusionTensors: Dconst2D, Dlinear2D, Dquadratic2D, DmoroCardin, Doseen
 import .ProbabilityUtils:  compute_2D_invariant_distribution
 import .Experiments2D: master_2D_experiment
 
+"""
+This script performs two-dimensional, variable-diffusion Brownian dynamics experiments and 
+constructs plots of the weak convergence to the invariant measure for a range of specified step sizes.
+
+Time rescalings are supported.
+"""
+
 # Name
 exp_name = "2D_test"
-master_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs" # Directory to save results in
+master_dir = "path/to/results/directory" # Directory to save results in
 T = 1000      # length of simulation
 tau = 1       # noise coefficient
 num_repeats = 12
@@ -46,4 +53,4 @@ save_dir = "$(master_dir)/$(exp_name)"
 
 # Run the experiments
 @info "Running: $(exp_name)"
-master_2D_experiment(integrators, num_repeats, potential, diffusion, T, R, tau, stepsizes, xmin, ymin, xmax, ymax, n_bins, save_dir, chunk_size=1000000, checkpoint=false, q0=nothing, save_traj=false, time_transform=time_transform)
+master_2D_experiment(integrators, num_repeats, potential, diffusion, T, R, tau, stepsizes, xmin, ymin, xmax, ymax, n_bins, save_dir, chunk_size=1000000, checkpoint=checkpoint, q0=nothing, time_transform=time_transform)

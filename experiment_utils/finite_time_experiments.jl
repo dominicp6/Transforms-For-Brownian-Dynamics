@@ -6,7 +6,6 @@ include("../general_utils/probability_utils.jl")
 include("../general_utils/plotting_utils.jl")
 include("../general_utils/transform_utils.jl")
 include("../general_utils/misc_utils.jl")
-include("../general_utils/dynamics_utils.jl")
 include("experiments.jl")
 using FHist, JLD2, Statistics, .Threads, ProgressBars, JSON, Random, StatsBase, Plots
 import .Calculus: differentiate1D
@@ -14,7 +13,6 @@ import .ProbabilityUtils: compute_1D_mean_L1_error, compute_1D_invariant_distrib
 import .PlottingUtils: save_and_plot
 import .TransformUtils: increment_I_counts
 import .MiscUtils: init_q0, create_directory_if_not_exists
-import .DynamicsUtils: run_estimate_diffusion_coefficient, run_estimate_diffusion_coefficient_time_rescaling, run_estimate_diffusion_coefficient_lamperti
 import .DiffusionTensors: Dconst1D
 import .Experiments: run_chunk
 export run_1D_finite_time_convergence_experiment
@@ -514,10 +512,10 @@ function run_1D_finite_time_convergence_experiment(integrators, integrators_tran
         plot_finite_time_errors(error_untransformed, integrators, stepsizes, time_snapshots, save_dir, "untransformed")
     end
     if time_transform
-        plot_finite_time_errors(error_time_transformed, integrators, stepsizes, time_snapshots, save_dir, "time_transformed")
+        plot_finite_time_errors(error_time_transformed, integrators_transformed, stepsizes, time_snapshots, save_dir, "time_transformed")
     end
     if space_transform
-        plot_finite_time_errors(error_space_transformed, integrators, stepsizes, time_snapshots, save_dir, "space_transformed")
+        plot_finite_time_errors(error_space_transformed, integrators_transformed, stepsizes, time_snapshots, save_dir, "space_transformed")
     end
 
 end

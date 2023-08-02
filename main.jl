@@ -8,10 +8,16 @@ import .Potentials: doubleWell1D, LM2013, localWell1D, transformedLocalWell1D, t
 import .DiffusionTensors: Dconst1D, Dabs1D, Dquadratic1D
 import .ProbabilityUtils: compute_1D_invariant_distribution
 import .Experiments: master_1D_experiment, run_1D_experiment_until_given_error
-using WAV
+
+"""
+This script performs one-dimensional, variable-diffusion Brownian dynamics experiments and 
+constructs plots of the weak convergence to the invariant measure for a range of specified step sizes.
+
+Time rescalings and lamperti transforms are supported.
+"""
 
 exp_name = "1D_test" # Name
-master_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/outputs" # Directory to save results in
+master_dir = "path/to/results/directory" # Directory to save results in
 T = 1000             # length of simulation
 tau = 1              # noise coefficient
 num_repeats = 12     
@@ -20,7 +26,7 @@ num_repeats = 12
 num_step_sizes = 10
 stepsizes = 10 .^ range(-3,stop=-1,length=num_step_sizes)
 
-# The integrators to use
+# The integrators to use (comma separated list)
 integrators = [leimkuhler_matthews1D]
 
 # The histogram parameters for binning
@@ -47,4 +53,4 @@ save_dir = "$(master_dir)/$(exp_name)"
 
 # Run the experiments
 @info "Running: $(exp_name)"
-master_1D_experiment(integrators, num_repeats, potential, diffusion, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=checkpoint, q0=nothing, save_traj=save_traj, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
+master_1D_experiment(integrators, num_repeats, potential, diffusion, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=checkpoint, q0=nothing, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
