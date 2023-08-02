@@ -15,7 +15,7 @@ import .TransformUtils: increment_I_counts
 import .MiscUtils: init_q0, create_directory_if_not_exists
 import .DiffusionTensors: Dconst1D
 import .Experiments: run_chunk
-export run_1D_finite_time_convergence_experiment
+export run_1D_finite_time_convergence_experiment, finite_time_convergence_to_invariant_measure
 
 """
 Compute the mean L1 error between a set of histograms and their corresponding reference histograms.
@@ -34,6 +34,18 @@ function compute_histogram_errors(histograms, reference_histograms)
     # Computing the error for each time snapshot
     for i in eachindex(histograms)
         errors[i] = compute_1D_mean_L1_error(histograms[i], reference_histograms[i])
+    end
+
+    return errors
+end
+
+function compute_histogram_errors_single_reference(histograms, reference_histogram, total_samples)
+    # Apply compute_1D_mean_L1_error for each corresponding pair of histograms
+    errors = zeros(length(histograms))
+
+    # Computing the error for each time snapshot
+    for i in eachindex(histograms)
+        errors[i] = compute_1D_mean_L1_error(histograms[i], reference_histogram, total_samples)
     end
 
     return errors
@@ -59,6 +71,13 @@ function plot_finite_time_errors(error, integrators, stepsizes, time_snapshots, 
             savefig("$(save_dir)/figures/h=$(round(stepsize,digits=3))/$(plot_type)/$(plot_title).png")
         end
     end
+
+end
+
+function plot_finite_time_errors_single_reference(error, integrator, stepsize, time_snapshots, save_dir)
+    plot_title = "$(string(nameof(integrator))),$(round(stepsize,digits=3))"
+    plot(time_snapshots, error, xlabel="Time", ylabel="Error", title=plot_title)
+    savefig("$(save_dir)/figures/$(plot_title).png")
 
 end
 
@@ -517,6 +536,31 @@ function run_1D_finite_time_convergence_experiment(integrators, integrators_tran
     if space_transform
         plot_finite_time_errors(error_space_transformed, integrators_transformed, stepsizes, time_snapshots, save_dir, "space_transformed")
     end
+
+end
+
+
+function finite_time_convergence_to_invariant_measure(integrator, stepsize, num_repeats, V, D, ΔT, T, tau, bin_boundaries, save_dir; chunk_size=1000, mu0=0.0, sigma0=1.0)
+
+    # Create the directory to save the results
+    create_directory_if_not_exists(save_dir)
+    create_directory_if_not_exists("$(save_dir)/figures")
+
+    @info "Computing the Invariant Distribution"
+    exact_invariant_distribution = compute_1D_invariant_distribution(V, tau, bin_boundaries)
+
+    @info "Running finite time convergence experiment for $(string(nameof(integrator))) with stepsize $(stepsize) for $(T) seconds"
+    histograms = run_1D_finite_time_experiment_untransformed(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, mu0=mu0, sigma0=sigma0)
+
+    @info "Computing finite time errors"
+    finite_time_errors = compute_histogram_errors_single_reference(histograms, exact_invariant_distribution, num_repeats)
+
+    # Save the data to file
+    save("$(save_dir)/finite_time_convergence.jld2", "data", finite_time_errors)
+
+    # Plot finite time error results
+    time_snapshots = ΔT:ΔT:T
+    plot_finite_time_errors_single_reference(finite_time_errors, integrator, stepsize, time_snapshots, save_dir)
 
 end
 
