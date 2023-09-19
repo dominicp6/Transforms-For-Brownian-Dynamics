@@ -13,7 +13,7 @@ import .PlottingUtils: save_and_plot
 import .MiscUtils: init_q0, create_directory_if_not_exists
 import .TransformUtils: increment_g_counts, increment_I_counts
 import .DiffusionTensors: Dconst1D
-export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_error, run_autocorrelation_experiment
+export run_1D_experiment, master_1D_experiment, run_1D_experiment_until_given_error, run_autocorrelation_experiment, run_ess_autocorrelation_experiment
 
 """
 Creates necessary directories and save experiment parameters for the 1D experiment.
@@ -119,7 +119,7 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
     original_D = D
     
     # [For transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
-    transform_potential_and_diffusion!(V, D, tau, time_transform, space_transform, x_of_y)
+    V, D = transform_potential_and_diffusion(V, D, tau, time_transform, space_transform, x_of_y)
 
     # Compute the symbolic derivative of the potential and diffusion functions
     Vprime = differentiate1D(V)
@@ -128,7 +128,7 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
     # Initialise empty data array
     convergence_errors = zeros(length(stepsizes), num_repeats)
 
-    Threads.@threads for repeat in ProgressBar(1:num_repeats)
+    for repeat in ProgressBar(1:num_repeats)
         # set the random seed for reproducibility
         Random.seed!(repeat) 
 
@@ -314,6 +314,59 @@ function run_1D_experiment_until_given_error(integrator, num_repeats, V, D, tau,
     return steps_until_uncertainty_data
 end
 
+function run_ess_autocorrelation_experiment(integrator, num_repeats, V, D, T, tau, stepsize, max_lag, save_dir; time_transform=false, space_transform=false, x_of_y=nothing)
+    @assert max_lag > 0
+    @assert !(time_transform && space_transform)
+
+    create_directory_if_not_exists(save_dir)
+
+    # [For transformed integrators] Modify the potential and diffusion functions appropriately (see paper for details)
+    V, D = transform_potential_and_diffusion(V, D, tau, time_transform, space_transform, x_of_y)
+
+    # Compute the symbolic derivatives of the potential and diffusion functions
+    Vprime = differentiate1D(V)
+    Dprime = differentiate1D(D)
+
+    num_samples = floor(Int, T/stepsize)
+
+    max_lag = min(max_lag, num_samples)
+    skip_first = 1 
+
+    # Initialise empty arrays to store the autocorrelation data
+    ac_data = zeros(max_lag, num_repeats)
+
+    for repeat in ProgressBar(1:num_repeats)
+        # randomise the random seed
+        Random.seed!(time_ns())
+        total_samples = floor(Int, T/stepsize)
+
+        q0 = init_q0(nothing)
+
+        q_traj, _ = integrator(q0, Vprime, D, Dprime, tau, total_samples, stepsize)
+
+        # Compute the autocorrelation
+        ac = autocor(q_traj, 1:max_lag)
+
+        # Populate the data arrays
+        ac_data[:, repeat] = ac
+    end
+
+    # Time series
+    t = range(0, step=stepsize, length=max_lag)
+
+    # Save the data and plot the results
+    save_and_plot(integrator, ac_data[skip_first:end, :], t[skip_first:end], save_dir, xlabel="Time", ylabel="Autocorrelation", error_in_mean=true, descriptor="_untransformed", xscale=:identity, yscale=:identity)
+
+    # Compute ESS
+    mean_ac = mean(ac_data, dims=2)
+    println(mean_ac)
+    sum_ac = sum(mean_ac, dims=1)[1]
+    println("Sum: $sum_ac")
+    ess = 1/(1+ 2 * sum(mean_ac, dims=1)[1])
+    println("ESS: $ess")
+
+end
+
 function run_autocorrelation_experiment(integrator, num_repeats, V, D, T, tau, stepsize, max_lag, save_dir; time_transform=false, space_transform=false, x_of_y=nothing)
 
     @assert max_lag > 0
@@ -338,8 +391,8 @@ function run_autocorrelation_experiment(integrator, num_repeats, V, D, T, tau, s
     ac_sb_data = zeros(max_lag, num_repeats)
 
     for repeat in ProgressBar(1:num_repeats)
-        # set the random seed for reproducibility
-        Random.seed!(repeat) 
+        # randomise the random seed
+        Random.seed!(time_ns())
         total_samples = floor(Int, T/stepsize)
 
         q0 = init_q0(nothing)
@@ -370,6 +423,9 @@ function run_autocorrelation_experiment(integrator, num_repeats, V, D, T, tau, s
 
         # Compute the autocorrelation
         ac_sb = autocor(q_traj, 1:max_lag)
+        
+        # Renormalise the autocorrelation
+        ac_sb = ac_sb ./ ac_sb[1]
 
         # Populate the data arrays
         ac_sb_data[:, repeat] = ac_sb

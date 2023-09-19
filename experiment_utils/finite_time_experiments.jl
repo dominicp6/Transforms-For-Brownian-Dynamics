@@ -239,7 +239,7 @@ function run_1D_finite_time_experiment_untransformed(integrator, num_repeats, V,
     return histograms
 end
 
-function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing)
+function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, mu0=nothing, sigma0=nothing)
         
     # Set the mean and the variance of the ρ₀ distribution (distribution of starting configurations) if not specified 
     if (mu0 === nothing)
@@ -293,13 +293,14 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
 
             # Simulate until T, saving the position every ΔT
             while snapshot_number < number_of_snapshots
-                # Compute the time rescaling factor g based on the current position
+
+                # Estimate the instantaneous time rescaling factor g 
                 g = 1/original_D(q0)
 
                 # Run one step of the integrator 
                 q1, Rₖ = integrator(q0, Vprime, D, Dprime, tau, 1, stepsize, previous_Rₖ)
                 
-                # Compute the elapsed time during this step (in the original time scale)
+                # Estimate the elapsed time during this step (in the original time scale)
                 delta_t = g * stepsize
 
                 # Update the time remaining until next snapshot
@@ -318,7 +319,7 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
                     snapshot_number += 1
                     
                     # Save the final snapshot position
-                    snapshots[snapshot_number, repeat] = q_final
+                    snapshots[snapshot_number, repeat] = q_final[end]
 
                     # Compute the overshoot time (time_remaining_in_snapshot is negative)
                     overshoot_time = abs(time_until_next_snapshot)
@@ -329,41 +330,6 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
                 end
             end
         end
-
-        #     # Simulate until T, saving the distribution every ΔT
-        #     for snapshot_number in 1:number_of_snapshots
-
-        #         time_remaining_in_snapshot = ΔT
-
-        #         while time_remaining_in_snapshot > 0
-        #             # Compute time rescaling factor (approximation - evaluate this at the initial position)
-        #             g = 1/original_D(q0)
-                    
-        #             # Run one step of the integrator 
-        #             q1, Rₖ = integrator(q0, Vprime, D, Dprime, tau, 1, stepsize, previous_Rₖ)
-
-        #             # t time elapsed in this step
-        #             delta_t = g * stepsize
-
-        #             # Update the time remaining in this snapshot
-        #             time_remaining_in_snapshot -= delta_t
-
-        #             if time_remaining_in_snapshot > 0
-        #                 # Update the previous value of Rₖ
-        #                 previous_Rₖ = Rₖ
-
-        #                 # Update the current position
-        #                 q0 = q1[1]
-        #             else
-        #                 # Perform a linear interpolation to find the position at the end of the snapshot (approximation)
-        #                 q0 = q0 + (q1[1] - q0) * (time_remaining_in_snapshot + delta_t) / delta_t
-        #             end
-        #         end 
-    
-        #         # Save the final snapshop position
-        #         snapshots[snapshot_number, repeat] = q0
-        #     end
-        # end
 
         repeats_remaining -= repeats_to_run
 
@@ -381,7 +347,7 @@ function run_1D_finite_time_experiment_time_transform(integrator, num_repeats, o
     return histograms
 end
 
-function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, checkpoint=false, save_traj=false, mu0=nothing, sigma0=nothing, x_of_y=nothing)
+function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, original_V, original_D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=1000, mu0=nothing, sigma0=nothing, x_of_y=nothing, y_of_x=nothing)
 
     # Set the mean and the variance of the ρ₀ distribution (distribution of starting configurations) if not specified 
     if (mu0 === nothing)
@@ -419,8 +385,11 @@ function run_1D_finite_time_experiment_space_transform(integrator, num_repeats, 
 
         Threads.@threads for repeat in ProgressBar(1:repeats_to_run)   
             
-            # Initialise the starting position
+            # Initialise the starting position in x space
             q0 = mu0 + sigma0 * randn()
+
+            # Transform the starting position to y space
+            q0 = y_of_x(q0)
 
             # Set the initial value of Rₖ to nothing
             previous_Rₖ = nothing
@@ -494,7 +463,7 @@ The function accepts various optional parameters to control the experiment, such
 
 The experiment results are saved as JLD2 files, and plots are generated and saved based on the transformation options.
 """
-function run_1D_finite_time_convergence_experiment(integrators, integrators_transformed, reference_integrator, reference_stepsize, num_repeats, V, D, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=1000, mu0=nothing, sigma0=nothing, untransformed=true, time_transform=false, space_transform=false, x_of_y=nothing)
+function run_1D_finite_time_convergence_experiment(integrators, integrators_transformed, reference_integrator, reference_stepsize, num_repeats, V, D, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=1000, mu0=nothing, sigma0=nothing, untransformed=true, time_transform=false, space_transform=false, x_of_y=nothing, y_of_x=nothing)
 
     @assert untransformed || time_transform || space_transform "At least one of untransformed, time_transform or space_transform must be set to true"
 
@@ -553,7 +522,7 @@ function run_1D_finite_time_convergence_experiment(integrators, integrators_tran
 
             if space_transform
                 @info "Running space transformed $(string(nameof(integrator))), stepsize = $stepsize"
-                histograms_ST = run_1D_finite_time_experiment_space_transform(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, mu0=mu0, sigma0=sigma0, x_of_y=x_of_y)
+                histograms_ST = run_1D_finite_time_experiment_space_transform(integrator, num_repeats, V, D, ΔT, T, tau, stepsize, bin_boundaries, save_dir; chunk_size=chunk_size, mu0=mu0, sigma0=sigma0, x_of_y=x_of_y, y_of_x=y_of_x)
                 
                 space_transformed_finite_time_errors = compute_histogram_errors(histograms_ST, reference_histograms)
                 error_space_transformed[integrator_idx, stepsize_idx, :] = space_transformed_finite_time_errors
