@@ -2,8 +2,10 @@ module ProbabilityUtils
 using HCubature, QuadGK, FHist, HDF5, Statistics, StatsBase, Plots
 export compute_1D_invariant_distribution, compute_2D_invariant_distribution, compute_1D_mean_L1_error, compute_2D_mean_L1_error
 
+"""
+Compute the expected counts in a 2D histogram of the configuration space
+"""
 function compute_2D_invariant_distribution(V, tau, xmin, ymin, xmax, ymax, n_bins)
-    # Compute the expected counts in a 2D histogram of the configuration space
 
     # Histogram parameters
     x_bins = range(xmin, xmax, length=n_bins+1)
@@ -32,9 +34,10 @@ function compute_2D_invariant_distribution(V, tau, xmin, ymin, xmax, ymax, n_bin
     return prob, x_bins, y_bins, n_bins
 end
 
-
+"""
+Compute the expected counts in a 1D histogram of the configuration space
+"""
 function compute_1D_invariant_distribution(V, tau, bins; configuration_space=(-12,12))
-    # Compute the expected counts in a 1D histogram of the configuration space
 
     n_bins = length(bins) - 1
 
@@ -55,10 +58,11 @@ function compute_1D_invariant_distribution(V, tau, bins; configuration_space=(-1
     return prob
 end
 
+"""
+Compute the mean L1 error between the expected probability and
+the actual probability distributions across all bins of a 1D histogram
+"""
 function compute_1D_mean_L1_error(empirical_histogram::Hist1D, reference_histogram::Hist1D)
-    # Compute the mean L1 error between the expected probability and
-    # the actual probability distributions across all bins of a 1D histogram
-
     n_bins = nbins(empirical_histogram)
     
     # Assert that the histograms have the same bin boundaries
@@ -73,9 +77,11 @@ function compute_1D_mean_L1_error(empirical_histogram::Hist1D, reference_histogr
     return mean_error
 end
 
+"""
+Compute the mean L1 error between the expected probability and
+the actual probability distributions across all bins of a 1D histogram
+"""
 function compute_1D_mean_L1_error(empirical_histogram::Hist1D, theoretical_probabilities::Vector{Float64}, total_samples::Int64)
-    # Compute the mean L1 error between the expected probability and
-    # the actual probability distributions across all bins of a 1D histogram
 
     n_bins = nbins(empirical_histogram)
 
@@ -85,9 +91,11 @@ function compute_1D_mean_L1_error(empirical_histogram::Hist1D, theoretical_proba
     return mean_error
 end
 
+"""
+Compute the mean L1 error between the expected probability and
+the actual probability distributions across all bins of a 1D histogram
+"""
 function compute_1D_mean_L1_error(empirical_probabilities::Vector{Float64}, theoretical_probabilities::Vector{Float64})
-    # Compute the mean L1 error between the expected probability and
-    # the actual probability distributions across all bins of a 1D histogram
 
     n_bins = length(empirical_probabilities)
 
@@ -97,9 +105,11 @@ function compute_1D_mean_L1_error(empirical_probabilities::Vector{Float64}, theo
     return mean_error
 end
 
+"""
+Compute the mean L1 error between the expected probability and
+the actual probability distributions across all bins of a 2D histogram
+"""
 function compute_2D_mean_L1_error(empirical_histogram::Hist2D, theoretical_probabilities::Matrix{Float64}, total_samples::Int64)
-    # Compute the mean L1 error between the expected probability and
-    # the actual probability distributions across all bins of a 2D histogram
 
     n_bins_x, n_bins_y = nbins(empirical_histogram)
 
@@ -109,10 +119,11 @@ function compute_2D_mean_L1_error(empirical_histogram::Hist2D, theoretical_proba
     return mean_error
 end
 
-
+"""
+Compute the mean L1 error between the expected probability and
+the actual probability distributions across all bins of a 2D histogram
+"""
 function compute_2D_mean_L1_error(empirical_probabilities::Matrix{Float64}, theoretical_probabilities::Matrix{Float64})
-    # Compute the mean L1 error between the expected probability and
-    # the actual probability distributions across all bins of a 2D histogram
 
     n_bins_x, n_bins_y = size(empirical_probabilities)
 

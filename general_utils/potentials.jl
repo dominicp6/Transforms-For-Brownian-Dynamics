@@ -79,14 +79,6 @@ function softQuadrupleWell2D(x::T, y::T) where T<:Real
     return  sqrt(17/16 - 2x^2 + x^4) + sqrt(17/16 - 2y^2 + y^4)
 end
 
-# function quadrupleWell2D(q::AbstractVector{T}) where T<:Real
-#     # 2D quadruple well potential
-#     x, y = q
-#     h = 2
-#     c = 2
-#     return -(1/4)*(x^2)*(h^4) + (1/2)*(c^2)*(x^4) + -(1/4)*(y^2)*(h^4) + (1/2)*(c^2)*(y^4)
-# end
-
 function moroCardin2D(q::AbstractVector{T}) where T<:Real
     # 2D Moro-Cardin potential
     x, y = q

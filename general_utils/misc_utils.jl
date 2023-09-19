@@ -11,8 +11,10 @@ function init_q0(q0; dim::Int = 1)
     return q0
 end
 
+"""
+Assert that D is a diagonal, isotropic matrix
+"""
 function assert_isotropic_diagonal_diffusion(D) 
-    # Assert that D is a diagonal, isotropic matrix
     D1 = (x,y) -> D(x,y)[1,1]
     D2 = (x,y) -> D(x,y)[2,2]
     Doff1 = (x,y) -> D(x,y)[1,2]

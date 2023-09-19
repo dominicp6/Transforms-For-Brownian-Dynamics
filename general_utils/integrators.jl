@@ -5,12 +5,6 @@ using .Calculus: symbolic_matrix_divergence2D
 export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD, limit_method_for_variable_diffusion1D, limit_method_for_variable_diffusion2D
 
 function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the temperature parameter
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -38,12 +32,6 @@ function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Nu
 end
 
 function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -77,12 +65,6 @@ function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Inte
 end
 
 function limit_method_for_variable_diffusion1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -150,12 +132,6 @@ function limit_method_for_variable_diffusion1D(q0, Vprime, D, Dprime, tau::Numbe
 end
 
 function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -190,12 +166,6 @@ function hummer_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Int
 end
 
 function milstein_method1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -225,12 +195,6 @@ function milstein_method1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::N
 end
 
 function stochastic_heun1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the temperature parameter
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -269,12 +233,6 @@ function stochastic_heun1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::N
 end
 
 function euler_maruyama2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion tensor at a given configuration
-    # tau is the temperature parameter
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -303,13 +261,10 @@ function euler_maruyama2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::N
     return q_traj, nothing
 end
 
+"""
+Optimised version of euler_maruyama2D for the case where D is the identity matrix
+"""
 function euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion tensor at a given configuration
-    # tau is the temperature parameter
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -335,13 +290,10 @@ function euler_maruyama2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Inte
     return q_traj, nothing
 end
 
+"""
+Optimised version of naive_leimkuhler_matthews2D for the case where D is the identity matrix
+"""
 function naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion tensor at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -375,12 +327,6 @@ function naive_leimkuhler_matthews2D_identityD(q0, Vprime, D, div_DDT, tau::Numb
 end
 
 function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion tensor at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -417,12 +363,6 @@ function naive_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Int
 end
 
 function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion tensor at a given configuration
-    # tau is the time scale for diffusion
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -459,12 +399,6 @@ function hummer_leimkuhler_matthews2D(q0, Vprime, D, div_DDT, tau::Number, m::In
 end
 
 function stochastic_heun2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the temperature parameter
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
@@ -505,13 +439,11 @@ function stochastic_heun2D(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::
     return q_traj, nothing
 end
 
+
+"""
+Optimised version of stochastic_heun2D for the case where D is the identity matrix
+"""
 function stochastic_heun2D_identityD(q0, Vprime, D, div_DDT, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
-    # q0 is the initial configuration
-    # V is a function that computes the potential energy at a given configuration
-    # D is a function that computes the diffusion coefficient at a given configuration
-    # tau is the temperature parameter
-    # m is the number of steps
-    # dt is the time step
     
     # set up
     t = 0.0
