@@ -16,18 +16,18 @@ constructs plots of the weak convergence to the invariant measure for a range of
 Time rescalings and lamperti transforms are supported.
 """
 
-exp_name = "1D_test" # Name
-master_dir = "path/to/results/directory" # Directory to save results in
-T = 1000             # length of simulation
+exp_name = "time_6" # Name
+master_dir = "/home/dominic/JuliaProjects/LangevinIntegrators/new_experiments" # Directory to save results in
+T = 1000000             # length of simulation
 tau = 1              # noise coefficient
-num_repeats = 12     
+num_repeats = 1     
 
 # The step sizes to use (to use a single step size, set stepsizes = [stepsize])
 num_step_sizes = 10
-stepsizes = 10 .^ range(-3,stop=-1,length=num_step_sizes)
+stepsizes = [0.01] #10 .^ range(-3,stop=-1,length=num_step_sizes)
 
 # The integrators to use (comma separated list)
-integrators = [leimkuhler_matthews1D]
+integrators = [milstein_method1D, naive_leimkuhler_matthews1D, euler_maruyama1D]
 
 # The histogram parameters for binning
 xmin = -5
@@ -40,7 +40,7 @@ diffusion = Dabs1D
 
 # Information on the transformation
 time_transform = false
-space_transform = false
+space_transform = true
 x_of_y = y -> (y/4) * (abs(y) + 4)  # This spatial transformation is specific to the Dabs1D diffusion coefficient (see paper for details)
                                     # If you want to use a different diffusion coefficient, you will need compute the appropriate mapping from the definition of the Lamperti transform
 
@@ -53,4 +53,4 @@ save_dir = "$(master_dir)/$(exp_name)"
 
 # Run the experiments
 @info "Running: $(exp_name)"
-master_1D_experiment(integrators, num_repeats, potential, diffusion, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=10000000, checkpoint=checkpoint, q0=nothing, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
+master_1D_experiment(integrators, num_repeats, potential, diffusion, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=1000000000, checkpoint=checkpoint, q0=nothing, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)

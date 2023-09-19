@@ -49,10 +49,11 @@ time_transform = true
 space_transform = true
 x_of_y = y -> (y/4) * (abs(y) + 4)  # This spatial transformation is specific to the Dabs1D diffusion coefficient (see paper for details)
                                     # If you want to use a different diffusion coefficient, you will need compute the appropriate mapping from the definition of the Lamperti transform
+y_of_x = x -> 2 * sign(x) * (sqrt(abs(x) + 1) - 1)  # The inverse of x_of_y
 
 # Do not modify below this line ----------------------------------------------
 bin_boundaries = range(xmin, xmax, length=n_bins+1)
 save_dir = "$(master_dir)/$(exp_name)"
 
 @info "Running: $(exp_name)"
-run_1D_finite_time_convergence_experiment(integrators, integrators_transformed, reference_integrator, reference_stepsize, num_repeats, potential, diffusion, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=100000, mu0=0, sigma0=1, untransformed=untransformed, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y)
+run_1D_finite_time_convergence_experiment(integrators, integrators_transformed, reference_integrator, reference_stepsize, num_repeats, potential, diffusion, ΔT, T, tau, stepsizes, bin_boundaries, save_dir; chunk_size=100000, mu0=0, sigma0=1, untransformed=untransformed, time_transform=time_transform, space_transform=space_transform, x_of_y=x_of_y, y_of_x=y_of_x)
