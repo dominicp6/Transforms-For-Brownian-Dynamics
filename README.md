@@ -1,2 +1,2 @@
 # Transforms-For-Brownian-Dynamics
-Langevin integrators implemented in Julia.
+Brownian dynamics integrators implemented in Julia.
