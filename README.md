@@ -78,6 +78,12 @@ $$
 
 where $`\mathbf{X}_t \in \mathbb{R}^n`$ is the state variable, $`\mathbf{W}_t`$ is an n-dimensional Wiener process, $`V: \mathbb{R}^n \xrightarrow{} \mathbb{R}`$ is a potential function, and $`\mathbf{D}\mathbf{D}^T: \mathbb{R}^n \xrightarrow{} \mathbb{R}^n \times \mathbb{R}^n`$ is a configuration-dependent diffusion tensor that is everywhere positive definite.
 
+We assume that $`V`$ is confining in a way that ensures ergodicity of the dynamics and, therefore, there exists a unique invariant distribution $`\rho(\mathbf{X})`$ - a probability distribution that does not change under the process dynamics. For Brownian dynamics, the invariant distribution is the canonical ensemble; $`\rho(\mathbf{X}) \propto \exp{\left(- V(\mathbf{X})/kT\right)}`$. Another consequence of ergodicity is that the long-time time averages converge to phase-space averages, i.e.
+
+$$
+\int_{\mathbb{R}^n} f(\mathbf{X})\rho(\mathbf{X})d\V{X} = \lim_{T \rightarrow \infty} \frac{1}{T} \int_{t=0}^T f(\mathbf{X}_t)dt.
+$$
+
 ### Transforms
 #### Lamperti Transform (Global Coordinate Transform)
 
