@@ -2,7 +2,7 @@ include("../general_utils/integrators.jl")
 include("../general_utils/potentials.jl")
 include("../general_utils/diffusion_tensors.jl")
 include("../general_utils/probability_utils.jl")
-include("../experiment_utils/finite_time_experiments.jl")
+include("../experiment_utils/experiments_finite_time.jl")
 import .Integrators: euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, limit_method_with_variable_diffusion1D, leimkuhler_matthews2D  
 import .Potentials: doubleWell1D, LM2013, localWell1D, transformedLocalWell1D, transformedLM2013, transformed2LM2013, softWell1D, transformedSoftWell1D, transformed2SoftWell1D
 import .DiffusionTensors: Dconst1D, Dabs1D, Dquadratic1D
