@@ -37,7 +37,10 @@ Done!
 ## Usage
 
 The `example_scripts` folder contains prepared experiment scripts to get you started. The easiest way to start is to run these files in Julia and edit and extend them as per your requirements. Here's what a few of these scripts do:
-[insert details].
+- `example_scripts/1D_experiment.jl` a script file for running Brownian dynamics simulations with or without transformations in one-dimension
+- `example_scripts/2D_experiment.jl` a script file for running Brownian dynamics simulations with or without transformations in two-dimensions
+- `example_scripts/computational_efficiency_experiments.jl` a script file for comparing the computational efficiency (minimum compute time required to reach a target error in the invariant measure) of various integrator/transform combinations
+- `example_scripts/finite_time_experiment.jl` a script file for computing the finite time error in the evolving distribution for various integrator/transform combinations
 
 The main functions for running experiments can be found in `experiment_utils`. Unless you want to extend the functionality of this package, it is unlikely that you will need to modify anything in this folder.
 
