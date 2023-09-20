@@ -2,7 +2,7 @@ module Integrators
 include("calculus.jl")
 using LinearAlgebra, Random, Plots, ForwardDiff, Base.Threads, ProgressBars
 using .Calculus: symbolic_matrix_divergence2D
-export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD, limit_method_for_variable_diffusion1D, limit_method_for_variable_diffusion2D
+export euler_maruyama1D, naive_leimkuhler_matthews1D, hummer_leimkuhler_matthews1D, milstein_method1D, stochastic_heun1D, euler_maruyama2D, naive_leimkuhler_matthews2D, hummer_leimkuhler_matthews2D, euler_maruyama2D_identityD, naive_leimkuhler_matthews2D_identityD, limit_method_with_variable_diffusion1D
 
 function euler_maruyama1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     
@@ -64,7 +64,7 @@ function naive_leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Inte
     return q_traj, Rₖ
 end
 
-function limit_method_for_variable_diffusion1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
+function limit_method_with_variable_diffusion1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     
     # set up
     t = 0.0

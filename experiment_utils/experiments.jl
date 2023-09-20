@@ -128,7 +128,7 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
     # Initialise empty data array
     convergence_errors = zeros(length(stepsizes), num_repeats)
 
-    for repeat in ProgressBar(1:num_repeats)
+    Threads.@threads for repeat in ProgressBar(1:num_repeats)
         # set the random seed for reproducibility
         Random.seed!(repeat) 
 
@@ -335,7 +335,7 @@ function run_ess_autocorrelation_experiment(integrator, num_repeats, V, D, T, ta
     # Initialise empty arrays to store the autocorrelation data
     ac_data = zeros(max_lag, num_repeats)
 
-    for repeat in ProgressBar(1:num_repeats)
+    Threads.@threads for repeat in ProgressBar(1:num_repeats)
         # randomise the random seed
         Random.seed!(time_ns())
         total_samples = floor(Int, T/stepsize)
@@ -390,7 +390,7 @@ function run_autocorrelation_experiment(integrator, num_repeats, V, D, T, tau, s
     # Initialise empty arrays to store the autocorrelation data
     ac_sb_data = zeros(max_lag, num_repeats)
 
-    for repeat in ProgressBar(1:num_repeats)
+    Threads.@threads for repeat in ProgressBar(1:num_repeats)
         # randomise the random seed
         Random.seed!(time_ns())
         total_samples = floor(Int, T/stepsize)
