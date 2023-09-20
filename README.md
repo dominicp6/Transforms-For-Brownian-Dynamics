@@ -21,13 +21,39 @@ To install this project, follow these steps:
 
 3. Install the required Julia packages:
 
-[list of packages]
+The code has only been tested with the version numbers provided. If you are experiencing package syntax errors, consider downgrading the packages to the specified versions:
+
+ - "QuadGK"     => v"2.8.2"
+ - "Statistics" => v"1.9.0"
+ - "JSON"       => v"0.21.4"
+ - "HDF5"       => v"0.16.15"
+ - "StatsBase"  => v"0.34.0"
+ - "Plots"      => v"1.38.17"
+ - "HCubature"  => v"1.5.1"
+ - "FHist"      => v"0.10.2"
 
 Done!
 
 ## Usage
 
+The `example_scripts` folder contains prepared experiment scripts to get you started. The easiest way to start is to run these files in Julia and edit and extend them as per your requirements. Here's what a few of these scripts do:
+[insert details].
 
+The main functions for running experiments can be found in `experiment_utils`. Unless you want to extend the functionality of this package, it is unlikely that you will need to modify anything in this folder.
+
+You can add your own custom integrators in `general_utils/integrators.jl`, your own custom diffusion tensors in `general_utils\diffusion_tensors.jl`, and your own potential functions in `general_utils\potentials.jl`. We recommend that you keep the other files in this folder unchanged.
+
+By default, outputs of the experiment runs are stored in the `outputs` folder. If you want to re-run an experiment with the same name, remember to delete the old experiment folder first or this will cause problems when saving results.
+
+## Contributing
+
+We welcome contributions! If you'd like to contribute to this project, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Push your changes to your fork.
+5. Submit a pull request to the main repository.
 
 ## Background Theory
 What follows is an introduction. See the [paper](https://arxiv.org/abs/2307.02913) for all technical details.
@@ -106,10 +132,5 @@ $$
 
 *Note: The Lamperti and time-rescaling transforms can also be combined, see the paper for details.*
 
-## Using the Code
-
-
-
-### Code Structure
-
+This code repository implements one-dimensional and multidimensional time-rescalings as well as one-dimensional Lamperti transforms. Multi-dimensional Lamperti transforms have not been implemented yet. We welcome contributions to extend the functionality of the codebase!
 
