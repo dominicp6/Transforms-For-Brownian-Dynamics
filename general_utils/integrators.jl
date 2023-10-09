@@ -64,7 +64,7 @@ function leimkuhler_matthews1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, d
     return q_traj, Rₖ
 end
 
-function limit_method_for_variable_diffusion1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
+function limit_method_with_variable_diffusion1D(q0, Vprime, D, Dprime, tau::Number, m::Integer, dt::Number, Rₖ=nothing)
     
     # set up
     t = 0.0
