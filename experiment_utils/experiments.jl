@@ -128,7 +128,7 @@ function run_1D_experiment(integrator, num_repeats, V, D, T, tau, stepsizes, pro
     # Initialise empty data array
     convergence_errors = zeros(length(stepsizes), num_repeats)
 
-    for repeat in ProgressBar(1:num_repeats)
+    Threads.@threads for repeat in ProgressBar(1:num_repeats)
         # set the random seed for reproducibility
         Random.seed!(repeat) 
 

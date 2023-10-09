@@ -10,8 +10,10 @@ function scale_range(range, transform)
     return transform.(range)
 end
 
+"""
+De-bias a histogram by transforming the bin edges according to a given function
+"""
 function debias_hist(hist, transform)
-    # De-bias a histogram by transforming the bin edges according to a given function
     bin_edges = binedges(hist)
     new_hist_edges = scale_range(bin_edges, transform)
     debias_hist = Hist1D(Histogram(new_hist_edges, bincounts(hist)))
@@ -59,8 +61,10 @@ function increment_g_counts2D(q_chunk, D, x_bins, y_bins, ΣgI, Σg, R)
     return ΣgI, Σg
 end
 
+"""
+Used for reweighting space-transformed trajectories (see paper for details)
+"""
 function increment_I_counts(q_chunk, x_of_y, bin_boundaries, ΣI)
-    # Used for reweighting space-transformed trajectories (see paper for details)
     # Iterate through trajectory points and assign to corresponding bin
     for q in q_chunk
         # Find the index of the histogram bin that q is in
