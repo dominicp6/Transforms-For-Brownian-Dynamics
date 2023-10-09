@@ -1,0 +1,33 @@
+{
+    "total_time_ns": 23907327614545,
+    "total_allocated_bytes": 7170173378284,
+    "time_ns": 0,
+    "n_calls": 0,
+    "allocated_bytes": 0,
+    "inner_timers": {
+        "Expleimkuhler_matthews1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 7933381791741,
+            "n_calls": 1,
+            "allocated_bytes": 2392072410783,
+            "inner_timers": {}
+        },
+        "Expeuler_maruyama1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 7401761792616,
+            "n_calls": 1,
+            "allocated_bytes": 2389048212817,
+            "inner_timers": {}
+        },
+        "Expstochastic_heun1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 8572184030188,
+            "n_calls": 1,
+            "allocated_bytes": 2389052754684,
+            "inner_timers": {}
+        }
+    }
+}

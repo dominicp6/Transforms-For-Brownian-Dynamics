@@ -1,0 +1,41 @@
+{
+    "total_time_ns": 13849491963739,
+    "total_allocated_bytes": 9559149825441,
+    "time_ns": 0,
+    "n_calls": 0,
+    "allocated_bytes": 0,
+    "inner_timers": {
+        "Expmilstein_method1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 3102531175059,
+            "n_calls": 1,
+            "allocated_bytes": 2391945224798,
+            "inner_timers": {}
+        },
+        "Expeuler_maruyama1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 2882629376481,
+            "n_calls": 1,
+            "allocated_bytes": 2389047945216,
+            "inner_timers": {}
+        },
+        "Expstochastic_heun1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 4915038718947,
+            "n_calls": 1,
+            "allocated_bytes": 2389053491411,
+            "inner_timers": {}
+        },
+        "Exphummer_leimkuhler_matthews1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 2949292693252,
+            "n_calls": 1,
+            "allocated_bytes": 2389103164016,
+            "inner_timers": {}
+        }
+    }
+}

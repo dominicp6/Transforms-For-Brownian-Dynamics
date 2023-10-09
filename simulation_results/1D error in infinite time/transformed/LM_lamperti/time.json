@@ -1,0 +1,17 @@
+{
+    "total_time_ns": 80806566952897,
+    "total_allocated_bytes": 89345000124553,
+    "time_ns": 0,
+    "n_calls": 0,
+    "allocated_bytes": 0,
+    "inner_timers": {
+        "Expnaive_leimkuhler_matthews1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 80806566952897,
+            "n_calls": 1,
+            "allocated_bytes": 89345000124553,
+            "inner_timers": {}
+        }
+    }
+}

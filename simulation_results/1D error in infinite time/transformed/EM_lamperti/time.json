@@ -1,0 +1,25 @@
+{
+    "total_time_ns": 21424420974433,
+    "total_allocated_bytes": 4781153696010,
+    "time_ns": 0,
+    "n_calls": 0,
+    "allocated_bytes": 0,
+    "inner_timers": {
+        "Expeuler_maruyama1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 9527171235696,
+            "n_calls": 1,
+            "allocated_bytes": 2392101004342,
+            "inner_timers": {}
+        },
+        "Expstochastic_heun1D": {
+            "total_time_ns": 0,
+            "total_allocated_bytes": 0,
+            "time_ns": 11897249738737,
+            "n_calls": 1,
+            "allocated_bytes": 2389052691668,
+            "inner_timers": {}
+        }
+    }
+}
