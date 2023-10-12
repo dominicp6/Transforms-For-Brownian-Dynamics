@@ -1,5 +1,19 @@
 [![DOI](https://zenodo.org/badge/616585156.svg)](https://zenodo.org/badge/latestdoi/616585156)
 
+Citing this codebase:
+
+@software{dom_phillips_2023_8434931,
+  author       = {Dom Phillips},
+  title        = {{dominicp6/Transforms-For-Brownian-Dynamics: 
+                   Initial Release}},
+  month        = oct,
+  year         = 2023,
+  publisher    = {Zenodo},
+  version      = {v0.1.0},
+  doi          = {10.5281/zenodo.8434931},
+  url          = {https://doi.org/10.5281/zenodo.8434931}
+}
+
 # Transforms-For-Brownian-Dynamics
 
 *Brownian dynamics integrators with coordinate transforms to constant diffusion, implemented in Julia.*
