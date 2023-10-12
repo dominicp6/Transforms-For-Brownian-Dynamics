@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/616585156.svg)](https://zenodo.org/badge/latestdoi/616585156)
+
 # Transforms-For-Brownian-Dynamics
 
 *Brownian dynamics integrators with coordinate transforms to constant diffusion, implemented in Julia.*
